@@ -26,7 +26,7 @@ describe("search API", () => {
         expect.stringContaining("/api/search"),
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ query: "test query" }),
+          body: JSON.stringify({ query: "test query", skip_answer: false }),
         })
       );
     });

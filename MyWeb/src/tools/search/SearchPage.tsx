@@ -1,4 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
+import Markdown from "react-markdown";
 import {
   browseSearchResult,
   searchWeb,
@@ -73,7 +74,7 @@ export default function SearchPage() {
   async function handleSearch(event: FormEvent) {
     event.preventDefault();
     const trimmed = query.trim();
-    if (!trimmed) return;
+    if (!trimmed || loading) return;
 
     setLoading(true);
     setSelected(null);
@@ -81,7 +82,7 @@ export default function SearchPage() {
     setError("");
 
     try {
-      const data = await searchWeb(trimmed);
+      const data = await searchWeb(trimmed, !modeConfig.showsAnswer);
       setAnswer(modeConfig.showsAnswer ? data.answer || "" : "");
       setResults(data.results || []);
     } catch (err) {
@@ -92,6 +93,7 @@ export default function SearchPage() {
   }
 
   async function handleBrowse(result: SearchResult) {
+    if (summaryLoading) return;
     setSelected(result);
     setSummaryLoading(true);
     setSummary("");
@@ -220,7 +222,7 @@ export default function SearchPage() {
       {modeConfig.showsAnswer && answer ? (
         <section className="search-answer">
           <h2>Answer</h2>
-          <p>{answer}</p>
+          <Markdown>{answer}</Markdown>
         </section>
       ) : null}
 
@@ -228,8 +230,8 @@ export default function SearchPage() {
         <section className="search-results">
           <h2>Results</h2>
           <ol>
-            {results.map((result) => (
-              <li key={result.url}>
+            {results.map((result, index) => (
+              <li key={`${result.url}-${index}`}>
                 <div className="search-result-main">
                   <button
                     type="button"
@@ -253,7 +255,7 @@ export default function SearchPage() {
       {selected ? (
         <section className="search-browse">
           <h2>Summary: {selected.title || selected.url}</h2>
-          {summaryLoading ? <p>Loading summary...</p> : <p>{summary}</p>}
+          {summaryLoading ? <p>Loading summary...</p> : <Markdown>{summary}</Markdown>}
           <a href={selected.url} target="_blank" rel="noopener noreferrer">
             Open original
           </a>

@@ -73,7 +73,7 @@ describe("SearchPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     await waitFor(() => {
-      expect(search.searchWeb).toHaveBeenCalledWith("search contract");
+      expect(search.searchWeb).toHaveBeenCalledWith("search contract", false);
     });
     expect(await screen.findByText("Use the structured search endpoint.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Backend search contract" })).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("SearchPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
 
     await waitFor(() => {
-      expect(search.searchWeb).toHaveBeenCalledWith("search contract");
+      expect(search.searchWeb).toHaveBeenCalledWith("search contract", true);
     });
     expect(screen.queryByText("Use the structured search endpoint.")).not.toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Backend search contract" })).toBeInTheDocument();
@@ -128,5 +128,84 @@ describe("SearchPage", () => {
     expect(screen.queryByText("Use the structured search endpoint.")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Backend search contract" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Query")).toBeInTheDocument();
+  });
+
+  it("shows an error when search fails", async () => {
+    vi.spyOn(search, "searchWeb").mockRejectedValue(new Error("Provider unavailable"));
+
+    render(<SearchPage />);
+
+    fireEvent.change(screen.getByLabelText("Question"), { target: { value: "test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(await screen.findByText("Provider unavailable")).toBeInTheDocument();
+  });
+
+  it("shows an error when browse fails", async () => {
+    vi.spyOn(search, "browseSearchResult").mockRejectedValue(new Error("Fetch timed out"));
+
+    render(<SearchPage />);
+
+    fireEvent.change(screen.getByLabelText("Question"), { target: { value: "test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    await screen.findByText("Backend search contract");
+
+    fireEvent.click(screen.getByRole("button", { name: "Backend search contract" }));
+
+    expect(await screen.findByText("Fetch timed out")).toBeInTheDocument();
+  });
+
+  it("handles empty search results", async () => {
+    vi.spyOn(search, "searchWeb").mockResolvedValue({ answer: "", results: [] });
+
+    render(<SearchPage />);
+
+    fireEvent.change(screen.getByLabelText("Question"), { target: { value: "obscure query" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    await waitFor(() => {
+      expect(search.searchWeb).toHaveBeenCalledWith("obscure query", false);
+    });
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
+  it("shows an error when config fails to load", async () => {
+    vi.spyOn(searchConfig, "getSearchConfig").mockRejectedValue(new Error("Unauthorized"));
+
+    render(<SearchPage />);
+
+    expect(await screen.findByText("Unauthorized")).toBeInTheDocument();
+  });
+
+  it("shows an error when saving provider fails", async () => {
+    vi.spyOn(searchConfig, "updateSearchConfig").mockRejectedValue(new Error("Forbidden"));
+
+    render(<SearchPage />);
+
+    fireEvent.change(await screen.findByLabelText("Search Engine"), { target: { value: "searx" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save engine" }));
+
+    expect(await screen.findByText("Forbidden")).toBeInTheDocument();
+  });
+
+  it("disables the search button and shows loading text while searching", async () => {
+    let resolveSearch!: (value: { answer: string; results: never[] }) => void;
+    vi.spyOn(search, "searchWeb").mockImplementation(
+      () => new Promise((resolve) => { resolveSearch = resolve; }),
+    );
+
+    render(<SearchPage />);
+
+    fireEvent.change(screen.getByLabelText("Question"), { target: { value: "test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(screen.getByRole("button", { name: "Searching..." })).toBeDisabled();
+    expect(screen.getByLabelText("Question")).toBeDisabled();
+
+    resolveSearch({ answer: "done", results: [] });
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Search" })).toBeEnabled();
+    });
   });
 });
