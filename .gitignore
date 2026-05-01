@@ -1,0 +1,16 @@
+# Subdirectories with their own git repos
+devTeam/
+musicBot/
+MyAgent/
+
+# Logs and artifacts
+.logs/
+.playwright-mcp/
+.codex/
+test-results/
+
+# OS
+.DS_Store
+
+# Claude
+.claude/
