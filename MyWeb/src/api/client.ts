@@ -50,10 +50,6 @@ export async function apiFetch<T>(
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  const user_id = localStorage.getItem("myagent.user_id");
-  if (user_id) {
-    headers.set("X-User-ID", user_id);
-  }
 
   let res: Response;
   try {

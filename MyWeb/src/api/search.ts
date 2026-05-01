@@ -22,10 +22,10 @@ export interface BrowseResponse {
   [key: string]: unknown;
 }
 
-export function searchWeb(query: string): Promise<SearchResponse> {
+export function searchWeb(query: string, skipAnswer = false): Promise<SearchResponse> {
   return apiFetch<SearchResponse>("/api/search", {
     method: "POST",
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, skip_answer: skipAnswer }),
   });
 }
 
