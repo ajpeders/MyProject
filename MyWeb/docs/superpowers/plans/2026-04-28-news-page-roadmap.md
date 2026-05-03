@@ -95,7 +95,7 @@ The Settings page should own source management:
 - [x] Added "Load defaults" button in Settings UI
 - [x] Deduplication by feed URL — safe to run multiple times
 
-### Phase 5: Personal News Agent
+### Phase 5: Personal News Agent (Done)
 
 A background agent that curates a personalized news feed.
 
@@ -110,20 +110,20 @@ A background agent that curates a personalized news feed.
 
 **User context the agent can access:**
 
-- [ ] User interests / profile (explicit preferences)
-- [ ] Calendar (upcoming meetings, events → topic relevance)
-- [ ] Email (active threads, projects → what they're working on)
-- [ ] Memories (stored facts about the user)
-- [ ] Reading patterns (which topics/sources they engage with)
+- [x] User interests / profile (explicit preferences)
+- [x] Calendar (upcoming meetings, events → topic relevance)
+- [x] Email (active threads, projects → what they're working on)
+- [x] Memories (stored facts about the user)
+- [x] Reading patterns (which topics/sources they engage with)
 
 **Implementation:**
 
-- [ ] Create `curated_articles` table (article_id, user_id, summary, relevance_score, link, created_at)
-- [ ] Build news curation agent with tools: search_articles, get_calendar, get_recent_mail, get_memories
-- [ ] Background scheduler (cron or async task) to run the agent periodically
-- [ ] API endpoint: `GET /api/news/curated` — returns the personalized feed
-- [ ] Frontend: show curated feed at top of news page, with summaries + links
-- [ ] Settings: configure interests, schedule frequency, context access
+- [x] Create `curated_articles` table (article_id, user_id, summary, relevance_score, link, created_at)
+- [x] Build news curation agent with tools: search_articles, get_calendar, get_recent_mail, get_memories
+- [x] Background scheduler (cron or async task) to run the agent periodically
+- [x] API endpoint: `GET /api/news/curated` — returns the personalized feed
+- [x] Frontend: show curated feed at top of news page, with summaries + links
+- [x] Settings: configure interests, schedule frequency, context access
 
 ### Phase 6: Twitter/X Integration
 
