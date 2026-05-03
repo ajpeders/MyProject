@@ -18,6 +18,7 @@ import {
   seedDefaults,
   type NewsSource,
 } from "../api/news";
+import { getProfile, updateInterests } from "../api/profile";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -46,6 +47,11 @@ export default function SettingsPage() {
 
   // Delete confirmation
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // Profile
+  const [interests, setInterests] = useState<string[]>([]);
+  const [newInterest, setNewInterest] = useState("");
+  const [interestsError, setInterestsError] = useState("");
 
   // News sources
   const [newsSources, setNewsSources] = useState<NewsSource[]>([]);
@@ -92,6 +98,13 @@ export default function SettingsPage() {
         if (!cancelled && !(err instanceof ApiError && err.status === 401)) {
           setMailModelError(err instanceof Error ? err.message : "Failed to load mail model");
         }
+      });
+    getProfile()
+      .then((data) => {
+        if (!cancelled) setInterests(data.interests);
+      })
+      .catch(() => {
+        // Profile may not exist yet — ignore
       });
     if (isAdmin()) {
       getSources()
@@ -209,6 +222,32 @@ export default function SettingsPage() {
       setConfirmDeleteSourceId(null);
     } catch (err) {
       setNewsSourcesError(err instanceof Error ? err.message : "Failed to delete source");
+    }
+  }
+
+  async function handleAddInterest(event: FormEvent) {
+    event.preventDefault();
+    const trimmed = newInterest.trim();
+    if (!trimmed || interests.includes(trimmed)) return;
+    const updated = [...interests, trimmed];
+    setInterests(updated);
+    setNewInterest("");
+    setInterestsError("");
+    try {
+      await updateInterests(updated);
+    } catch (err) {
+      setInterestsError(err instanceof Error ? err.message : "Failed to update interests");
+    }
+  }
+
+  async function handleRemoveInterest(interest: string) {
+    const updated = interests.filter((i) => i !== interest);
+    setInterests(updated);
+    setInterestsError("");
+    try {
+      await updateInterests(updated);
+    } catch (err) {
+      setInterestsError(err instanceof Error ? err.message : "Failed to update interests");
     }
   }
 
@@ -396,6 +435,43 @@ export default function SettingsPage() {
           )}
         </>
       )}
+
+      <div className="settings-profile">
+        <h2>Profile</h2>
+        <p>Your interests help personalize the For You feed.</p>
+
+        {interestsError ? <p className="settings-error">{interestsError}</p> : null}
+
+        <form className="settings-interests-form" onSubmit={handleAddInterest}>
+          <label>
+            <span>Add interest</span>
+            <input
+              type="text"
+              value={newInterest}
+              onChange={(e) => setNewInterest(e.target.value)}
+              placeholder="e.g. AI, music production, gaming"
+            />
+          </label>
+          <button type="submit" disabled={!newInterest.trim()}>Add</button>
+        </form>
+
+        {interests.length > 0 ? (
+          <div className="settings-interests-tags" aria-label="Interests">
+            {interests.map((interest) => (
+              <span key={interest} className="settings-interest-tag">
+                {interest}
+                <button
+                  type="button"
+                  aria-label={`Remove ${interest}`}
+                  onClick={() => void handleRemoveInterest(interest)}
+                >
+                  x
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       {isAdmin() && <div className="settings-news-sources">
         <h2>News Sources</h2>
