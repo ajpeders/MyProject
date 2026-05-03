@@ -6,6 +6,7 @@ import * as imap from "../api/imap";
 import * as client from "../api/client";
 import * as mailConfig from "../api/mailConfig";
 import * as newsApi from "../api/news";
+import * as profileApi from "../api/profile";
 
 import * as auth from "../api/auth";
 
@@ -38,6 +39,11 @@ vi.mock("../api/news", () => ({
   seedDefaults: vi.fn(),
 }));
 
+vi.mock("../api/profile", () => ({
+  getProfile: vi.fn(),
+  updateInterests: vi.fn(),
+}));
+
 const mockSources: newsApi.NewsSource[] = [
   { id: "s1", user_id: "u1", label: "Ars Technica", topic: "Tech", feed_url: "https://arstechnica.com/rss", enabled: true, created_at: 1 },
   { id: "s2", user_id: "u1", label: "BBC World", topic: "World", feed_url: "https://bbc.com/rss", enabled: true, created_at: 2 },
@@ -52,6 +58,8 @@ describe("SettingsPage", () => {
       available_models: ["qwen3:8b", "llama3.1:8b"],
     });
     vi.spyOn(newsApi, "getSources").mockResolvedValue({ sources: mockSources });
+    vi.spyOn(profileApi, "getProfile").mockResolvedValue({ interests: ["AI", "gaming"], model_config: {} });
+    vi.spyOn(profileApi, "updateInterests").mockResolvedValue(undefined);
   });
 
   it("renders settings heading", () => {
@@ -230,5 +238,48 @@ describe("SettingsPage", () => {
 
     expect(screen.queryByRole("heading", { name: "News Sources" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add source" })).not.toBeInTheDocument();
+  });
+
+  it("renders the Profile section with heading", async () => {
+    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+
+    expect(screen.getByRole("heading", { name: "Profile" })).toBeInTheDocument();
+    expect(await screen.findByText("AI")).toBeInTheDocument();
+    expect(screen.getByText("gaming")).toBeInTheDocument();
+  });
+
+  it("can add an interest", async () => {
+    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+
+    await screen.findByText("AI");
+    fireEvent.change(screen.getByPlaceholderText("e.g. AI, music production, gaming"), { target: { value: "music" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    await waitFor(() => {
+      expect(profileApi.updateInterests).toHaveBeenCalledWith(["AI", "gaming", "music"]);
+    });
+    expect(screen.getByText("music")).toBeInTheDocument();
+  });
+
+  it("can remove an interest", async () => {
+    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+
+    await screen.findByText("AI");
+    fireEvent.click(screen.getByRole("button", { name: "Remove AI" }));
+
+    await waitFor(() => {
+      expect(profileApi.updateInterests).toHaveBeenCalledWith(["gaming"]);
+    });
+  });
+
+  it("shows Profile section for non-admin users", async () => {
+    vi.spyOn(auth, "isAdmin").mockReturnValue(false);
+    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+
+    expect(screen.getByRole("heading", { name: "Profile" })).toBeInTheDocument();
   });
 });
