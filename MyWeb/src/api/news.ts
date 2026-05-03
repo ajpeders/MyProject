@@ -74,3 +74,37 @@ export function refreshFeeds(): Promise<{ new_articles: number }> {
 export function seedDefaults(): Promise<{ added: NewsSource[]; count: number }> {
   return apiFetch<{ added: NewsSource[]; count: number }>("/api/news/sources/seed", { method: "POST" });
 }
+
+export interface CuratedArticle {
+  curated_id: string;
+  article_id: string;
+  title: string;
+  source_label: string;
+  topic: string;
+  url: string;
+  summary: string;
+  relevance_score: number;
+  reason: string;
+  created_at: number;
+}
+
+export function getCuratedFeed(limit = 20, offset = 0): Promise<{ articles: CuratedArticle[] }> {
+  return apiFetch<{ articles: CuratedArticle[] }>(
+    `/api/news/curated?limit=${limit}&offset=${offset}`,
+    { method: "GET" },
+  );
+}
+
+export function rateCurated(curatedId: string, rating: 1 | -1): Promise<void> {
+  return apiFetch<void>(`/api/news/curated/${curatedId}/rate`, {
+    method: "POST",
+    body: JSON.stringify({ rating }),
+  });
+}
+
+export function rateSource(sourceId: string, rating: 1 | -1): Promise<void> {
+  return apiFetch<void>(`/api/news/sources/${sourceId}/rate`, {
+    method: "POST",
+    body: JSON.stringify({ rating }),
+  });
+}
