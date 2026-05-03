@@ -3,19 +3,37 @@ import { TOPICS, type NewsTopic } from "./sources";
 import {
   getSources,
   getArticles,
+  getCuratedFeed,
+  rateCurated,
   refreshFeeds,
   type NewsSource,
   type NewsArticle,
+  type CuratedArticle,
 } from "../../api/news";
+import { logSignal } from "../../api/profile";
 
 export default function NewsPage() {
+  const [forYou, setForYou] = useState(true);
   const [topic, setTopic] = useState<NewsTopic>("All");
   const [source, setSource] = useState("All sources");
   const [sources, setSources] = useState<NewsSource[]>([]);
   const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [curatedArticles, setCuratedArticles] = useState<CuratedArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+
+  const loadCurated = useCallback(async () => {
+    setError("");
+    try {
+      const data = await getCuratedFeed();
+      setCuratedArticles(data.articles);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load curated feed");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     setError("");
@@ -35,8 +53,12 @@ export default function NewsPage() {
 
   useEffect(() => {
     setLoading(true);
-    void loadData();
-  }, [loadData]);
+    if (forYou) {
+      void loadCurated();
+    } else {
+      void loadData();
+    }
+  }, [forYou, loadCurated, loadData]);
 
   const sourceOptions = useMemo(() => {
     const activeForTopic = sources
@@ -64,13 +86,36 @@ export default function NewsPage() {
     setError("");
     try {
       await refreshFeeds();
-      const artData = await getArticles(topic === "All" ? undefined : topic);
-      setArticles(artData.articles);
+      if (forYou) {
+        const data = await getCuratedFeed();
+        setCuratedArticles(data.articles);
+      } else {
+        const artData = await getArticles(topic === "All" ? undefined : topic);
+        setArticles(artData.articles);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to refresh feeds");
     } finally {
       setRefreshing(false);
     }
+  }
+
+  async function handleRate(curatedId: string, rating: 1 | -1, item: CuratedArticle) {
+    try {
+      await rateCurated(curatedId, rating);
+      void logSignal(rating === 1 ? "thumbs_up" : "thumbs_down", item.topic, item.source_label);
+    } catch {
+      // silent — rating is best-effort
+    }
+  }
+
+  function handleSelectForYou() {
+    setForYou(true);
+  }
+
+  function handleSelectTopic(t: NewsTopic) {
+    setForYou(false);
+    setTopic(t);
   }
 
   return (
@@ -82,30 +127,41 @@ export default function NewsPage() {
 
       <div className="news-toolbar">
         <div className="news-tabs" role="tablist" aria-label="News topics">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={forYou}
+            className={forYou ? "news-tab is-active" : "news-tab"}
+            onClick={handleSelectForYou}
+          >
+            For You
+          </button>
           {TOPICS.map((item) => (
             <button
               key={item}
               type="button"
               role="tab"
-              aria-selected={topic === item}
-              className={topic === item ? "news-tab is-active" : "news-tab"}
-              onClick={() => setTopic(item)}
+              aria-selected={!forYou && topic === item}
+              className={!forYou && topic === item ? "news-tab is-active" : "news-tab"}
+              onClick={() => handleSelectTopic(item)}
             >
               {item}
             </button>
           ))}
         </div>
 
-        <label className="news-filter">
-          <span>Source</span>
-          <select value={source} onChange={(event) => setSource(event.target.value)}>
-            {sourceOptions.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!forYou && (
+          <label className="news-filter">
+            <span>Source</span>
+            <select value={source} onChange={(event) => setSource(event.target.value)}>
+              {sourceOptions.map((item) => (
+                <option key={item} value={item}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <button
           type="button"
@@ -121,6 +177,41 @@ export default function NewsPage() {
 
       {loading ? (
         <p className="news-loading">Loading...</p>
+      ) : forYou ? (
+        curatedArticles.length > 0 ? (
+          <ul className="news-list" aria-label="Curated stories">
+            {curatedArticles.map((item) => (
+              <li key={item.curated_id} className="news-list-item">
+                <div className="news-list-meta">
+                  <a href={item.url} target="_blank" rel="noreferrer">
+                    <strong>{item.title}</strong>
+                  </a>
+                  <span>{item.source_label}</span>
+                </div>
+                <p>{item.summary}</p>
+                <p className="news-curated-reason">{item.reason}</p>
+                <div className="news-curated-actions">
+                  <button
+                    type="button"
+                    aria-label="Thumbs up"
+                    onClick={() => void handleRate(item.curated_id, 1, item)}
+                  >
+                    +1
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Thumbs down"
+                    onClick={() => void handleRate(item.curated_id, -1, item)}
+                  >
+                    -1
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="news-empty">Set up your interests in Settings to get personalized picks.</p>
+        )
       ) : visibleArticles.length > 0 ? (
         <ul className="news-list" aria-label="News stories">
           {visibleArticles.map((item) => (
