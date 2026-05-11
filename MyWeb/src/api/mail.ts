@@ -14,6 +14,9 @@ export interface MailSummary {
   subject?: string;
   date?: string;
   recommendation?: string;
+  importance?: number;
+  recommendation_reason?: string;
+  recommended_folder?: string;
   summary?: string;
   recommended_todo?: string;
   suggested_actions?: SuggestedAction[];
@@ -42,6 +45,7 @@ export interface MailReadResponse {
   subject: string;
   date: string;
   body: string;
+  body_html?: string;
   account: string;
   uid?: string | number | null;
   recommendation?: string;
@@ -163,6 +167,13 @@ export interface SearchMailRequest {
 
 export interface SearchMailResponse {
   emails: MailSummary[];
+}
+
+export function createFolder(name: string, account?: string): Promise<{ folder: string; created: boolean }> {
+  return apiFetch("/api/mail/folders/create", {
+    method: "POST",
+    body: JSON.stringify({ name, account: account ?? "" }),
+  });
 }
 
 export function searchMail(request: SearchMailRequest): Promise<SearchMailResponse> {
