@@ -61,11 +61,17 @@ Backend (FastAPI)
 
 ### P1 — UX
 - [x] Sync progress bar — simulated multi-step progress with labels during sync/fetch/analyze
-- [ ] Auto-fetch on folder change — selecting a folder should trigger a sync without clicking "sync"
+- [x] Auto-fetch on folder change — selecting a folder triggers a sync automatically
 - [x] Suggested actions in UI — renders "add to calendar" buttons from AI analysis, wired to calendar API
-- [ ] Bulk actions — multi-select checkboxes for batch move/delete/archive
-- [ ] Loading skeleton — show placeholder rows while syncing instead of blank screen
-- [ ] Unread filter toggle — backend supports `unread_only` but no UI toggle exists
+- [x] Bulk actions — multi-select checkboxes with bulk archive/move/delete bar
+- [x] Loading skeleton — shimmer placeholder rows while syncing
+- [x] Unread filter toggle — clickable "N unread" pill in status bar, client-side + server-side filtering
+- [x] Sort controls — sort by time/importance/recommendation with toggle buttons
+- [x] AI importance scoring — LLM assigns 1-5 importance, shown as color-coded badge
+- [x] Recommendation reasons — LLM explains why it chose each action, shown as tooltip + detail pane chip
+- [x] Folder-aware AI recommendations — LLM sees user's IMAP folders, can recommend specific folder moves, shown as one-click "→ Folder" button
+- [x] HTML email rendering — sandboxed iframe with srcdoc for rich email display, plain text fallback
+- [x] Create folder endpoint — IMAP CREATE via `/api/mail/folders/create`
 
 ### P2 — Backend
 - [ ] Prompt improvements — refine recommendation/intent system prompts for better triage accuracy (fewer false deletes, better calendar detection, etc.)

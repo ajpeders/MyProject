@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { TOPICS, type NewsTopic } from "./sources";
 import {
   getSources,
@@ -122,7 +123,7 @@ export default function NewsPage() {
     <section className="news-page">
       <header className="news-header">
         <h1>News</h1>
-        <p>Browse stories by topic and source. Manage sources in Settings.</p>
+        <p>Browse stories by topic and source. <Link to="/settings">Tune your interests</Link></p>
       </header>
 
       <div className="news-toolbar">
@@ -210,7 +211,9 @@ export default function NewsPage() {
             ))}
           </ul>
         ) : (
-          <p className="news-empty">Set up your interests in Settings to get personalized picks.</p>
+          <p className="news-empty">
+          <Link to="/settings">Set up your interests</Link> to get personalized picks.
+        </p>
         )
       ) : visibleArticles.length > 0 ? (
         <ul className="news-list" aria-label="News stories">
