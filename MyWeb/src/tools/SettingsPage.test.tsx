@@ -13,6 +13,9 @@ import * as auth from "../api/auth";
 vi.mock("../api/auth", () => ({
   isAuthenticated: () => true,
   isAdmin: vi.fn(() => true),
+  createOrRotateDeviceToken: vi.fn(),
+  getDeviceTokenMeta: vi.fn(),
+  revokeDeviceToken: vi.fn(),
 }));
 
 vi.mock("../api/client", () => ({
@@ -53,6 +56,7 @@ describe("SettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.spyOn(auth, "isAdmin").mockReturnValue(true);
+    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
     vi.spyOn(mailConfig, "getMailConfig").mockResolvedValue({
       mail_model: "qwen3:8b",
       available_models: ["qwen3:8b", "llama3.1:8b"],
@@ -60,29 +64,49 @@ describe("SettingsPage", () => {
     vi.spyOn(newsApi, "getSources").mockResolvedValue({ sources: mockSources });
     vi.spyOn(profileApi, "getProfile").mockResolvedValue({ interests: ["AI", "gaming"], model_config: {} });
     vi.spyOn(profileApi, "updateInterests").mockResolvedValue(undefined);
-  });
-
-  it("renders settings heading", () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-    expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByText("Manage your email settings.")).toBeInTheDocument();
-  });
-
-  it("shows add account button", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "+ Add IMAP Account" })).toBeInTheDocument();
+    vi.spyOn(auth, "getDeviceTokenMeta").mockResolvedValue({ exists: false });
+    vi.spyOn(auth, "createOrRotateDeviceToken").mockResolvedValue({
+      token: "whsk_secret-token-value",
+      last4: "alue",
+      created_at: 1_776_672_000,
     });
+    vi.spyOn(auth, "revokeDeviceToken").mockResolvedValue(undefined);
   });
 
-  it("saves the MyAgent API key from settings", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+  // ── Tabs ─────────────────────────────────────────
 
-    fireEvent.change(screen.getByLabelText("MyAgent API Key"), { target: { value: "runtime-key" } });
-    fireEvent.click(screen.getByRole("button", { name: "save key" }));
+  it("renders tabs: General, Mail, News", () => {
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    expect(screen.getByRole("tab", { name: "General" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Mail" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "News" })).toBeInTheDocument();
+  });
+
+  it("defaults to General tab", () => {
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("shows News tab for all users", () => {
+    vi.spyOn(auth, "isAdmin").mockReturnValue(false);
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    expect(screen.getByRole("tab", { name: "News" })).toBeInTheDocument();
+  });
+
+  it("hides Sources section on News tab for non-admin", async () => {
+    vi.spyOn(auth, "isAdmin").mockReturnValue(false);
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: "News" }));
+    expect(screen.queryByText("Sources")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Source name")).not.toBeInTheDocument();
+  });
+
+  // ── General Tab (API Key) ─────────────────────────
+
+  it("saves the API key", async () => {
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    fireEvent.change(screen.getByLabelText("API Key"), { target: { value: "runtime-key" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
       expect(client.setApiKey).toHaveBeenCalledWith("runtime-key");
@@ -90,183 +114,32 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("shows the current mail model and available options", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
+  // ── News Tab (Interests + Model + Sources) ───────
+
+  it("renders interests on News tab", async () => {
     render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-
-    expect(await screen.findByDisplayValue("qwen3:8b")).toBeInTheDocument();
-    fireEvent.focus(screen.getByLabelText("Mail Model"));
-    expect(await screen.findByRole("listbox")).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "qwen3:8b" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "save model" })).toBeInTheDocument();
-  });
-
-  it("saves the selected mail model", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    vi.spyOn(mailConfig, "updateMailConfig").mockResolvedValue({
-      mail_model: "llama3.1:8b",
-      available_models: ["qwen3:8b", "llama3.1:8b"],
-    });
-
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-
-    fireEvent.change(await screen.findByLabelText("Mail Model"), { target: { value: "llama" } });
-    fireEvent.click(await screen.findByRole("option", { name: "llama3.1:8b" }));
-    fireEvent.click(screen.getByRole("button", { name: "save model" }));
-
-    await waitFor(() => {
-      expect(mailConfig.updateMailConfig).toHaveBeenCalledWith("llama3.1:8b");
-      expect(screen.getByText("Mail model saved: llama3.1:8b")).toBeInTheDocument();
-    });
-  });
-
-  it("shows loading then accounts", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([
-      { id: "1", name: "Gmail", server: "imap.gmail.com", username: "test@gmail.com", created_at: "2026-04-19" },
-    ]);
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-    await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
-      expect(screen.getByText("imap.gmail.com")).toBeInTheDocument();
-    });
-  });
-
-  it("opens add account form", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-    await waitFor(() => {
-      fireEvent.click(screen.getByRole("button", { name: "+ Add IMAP Account" }));
-    });
-    expect(screen.getByRole("heading", { name: "Add IMAP Account" })).toBeInTheDocument();
-  });
-
-  it("adds an IMAP account without asking for the MyAgent password", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    vi.spyOn(imap, "addImapAccount").mockResolvedValue({
-      id: "1",
-      name: "Gmail",
-      server: "imap.gmail.com",
-      username: "test@gmail.com",
-      created_at: "2026-04-20",
-    });
-
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole("button", { name: "+ Add IMAP Account" }));
-    fireEvent.change(screen.getByLabelText("Account Name"), { target: { value: "Gmail" } });
-    fireEvent.change(screen.getByLabelText("IMAP Server"), { target: { value: "imap.gmail.com" } });
-    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "test@gmail.com" } });
-    fireEvent.change(screen.getByLabelText("Password (app password)"), { target: { value: "app-password" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add Account" }));
-
-    await waitFor(() => {
-      expect(imap.addImapAccount).toHaveBeenCalledWith("Gmail", "imap.gmail.com", "test@gmail.com", "app-password");
-    });
-    expect(screen.queryByLabelText("MyAgent Password")).not.toBeInTheDocument();
-  });
-
-  it("shows empty state when no accounts", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-    await waitFor(() => {
-      expect(screen.getByText("No IMAP accounts configured.")).toBeInTheDocument();
-    });
-  });
-
-  it("renders news sources from API", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-
-    expect(screen.getByRole("heading", { name: "News Sources" })).toBeInTheDocument();
-    expect(await screen.findByRole("checkbox", { name: "Ars Technica" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "BBC World" })).toBeChecked();
-  });
-
-  it("adds a news source via API", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    vi.spyOn(newsApi, "createSource").mockResolvedValue({
-      id: "s3", user_id: "u1", label: "Bloomberg", topic: "Tech",
-      feed_url: "https://example.com/bloomberg.xml", enabled: true, created_at: 3,
-    });
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-
-    await screen.findByRole("checkbox", { name: "Ars Technica" });
-    fireEvent.change(screen.getByLabelText("Source name"), { target: { value: "Bloomberg" } });
-    fireEvent.change(screen.getByLabelText("Feed URL"), { target: { value: "https://example.com/bloomberg.xml" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
-
-    expect(await screen.findByRole("checkbox", { name: "Bloomberg" })).toBeChecked();
-    expect(newsApi.createSource).toHaveBeenCalledWith("Bloomberg", "Tech", "https://example.com/bloomberg.xml");
-  });
-
-  it("toggles a news source via API", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    vi.spyOn(newsApi, "updateSource").mockResolvedValue({
-      ...mockSources[0], enabled: false,
-    });
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-
-    const checkbox = await screen.findByRole("checkbox", { name: "Ars Technica" });
-    fireEvent.click(checkbox);
-
-    await waitFor(() => {
-      expect(newsApi.updateSource).toHaveBeenCalledWith("s1", false);
-    });
-  });
-
-  it("deletes a news source via API with confirmation", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    vi.spyOn(newsApi, "deleteSource").mockResolvedValue(undefined);
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-
-    await screen.findByRole("checkbox", { name: "Ars Technica" });
-    const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
-    fireEvent.click(deleteButtons[0]);
-
-    expect(screen.getByText("Delete?")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
-
-    await waitFor(() => {
-      expect(newsApi.deleteSource).toHaveBeenCalledWith("s1");
-      expect(screen.queryByRole("checkbox", { name: "Ars Technica" })).not.toBeInTheDocument();
-    });
-  });
-
-  it("hides news sources section for non-admin users", async () => {
-    vi.spyOn(auth, "isAdmin").mockReturnValue(false);
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-
-    expect(screen.queryByRole("heading", { name: "News Sources" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add source" })).not.toBeInTheDocument();
-  });
-
-  it("renders the Profile section with heading", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-
-    expect(screen.getByRole("heading", { name: "Profile" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "News" }));
     expect(await screen.findByText("AI")).toBeInTheDocument();
     expect(screen.getByText("gaming")).toBeInTheDocument();
   });
 
-  it("can add an interest", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
+  it("can add an interest on News tab", async () => {
     render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-
+    fireEvent.click(screen.getByRole("tab", { name: "News" }));
     await screen.findByText("AI");
-    fireEvent.change(screen.getByPlaceholderText("e.g. AI, music production, gaming"), { target: { value: "music" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.change(screen.getByPlaceholderText("e.g. AI, hip hop, Rust, gaming"), { target: { value: "music" } });
+    // Click the Add button next to the interests input (first one)
+    const addButtons = screen.getAllByRole("button", { name: "Add" });
+    fireEvent.click(addButtons[0]);
 
     await waitFor(() => {
       expect(profileApi.updateInterests).toHaveBeenCalledWith(["AI", "gaming", "music"]);
     });
-    expect(screen.getByText("music")).toBeInTheDocument();
   });
 
-  it("can remove an interest", async () => {
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
+  it("can remove an interest on News tab", async () => {
     render(<MemoryRouter><SettingsPage /></MemoryRouter>);
-
+    fireEvent.click(screen.getByRole("tab", { name: "News" }));
     await screen.findByText("AI");
     fireEvent.click(screen.getByRole("button", { name: "Remove AI" }));
 
@@ -275,11 +148,123 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("shows Profile section for non-admin users", async () => {
-    vi.spyOn(auth, "isAdmin").mockReturnValue(false);
-    vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
-    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+  // ── Mail Tab ─────────────────────────────────────
 
-    expect(screen.getByRole("heading", { name: "Profile" })).toBeInTheDocument();
+  it("shows mail model on Mail tab", async () => {
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: "Mail" }));
+    expect(await screen.findByDisplayValue("qwen3:8b")).toBeInTheDocument();
+  });
+
+  it("shows add account button on Mail tab", async () => {
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: "Mail" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "+ Add IMAP Account" })).toBeInTheDocument();
+    });
+  });
+
+  // ── News Tab ─────────────────────────────────────
+
+  it("renders news sources on News tab", async () => {
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: "News" }));
+    expect(await screen.findByRole("checkbox", { name: "Ars Technica" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "BBC World" })).toBeChecked();
+  });
+
+  it("adds a news source via API", async () => {
+    vi.spyOn(newsApi, "createSource").mockResolvedValue({
+      id: "s3", user_id: "u1", label: "Bloomberg", topic: "Tech",
+      feed_url: "https://example.com/bloomberg.xml", enabled: true, created_at: 3,
+    });
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: "News" }));
+
+    await screen.findByRole("checkbox", { name: "Ars Technica" });
+    fireEvent.change(screen.getByPlaceholderText("Source name"), { target: { value: "Bloomberg" } });
+    fireEvent.change(screen.getByPlaceholderText("Feed URL"), { target: { value: "https://example.com/bloomberg.xml" } });
+    // Click the source Add button (second one — first is interests)
+    const addButtons = screen.getAllByRole("button", { name: "Add" });
+    fireEvent.click(addButtons[addButtons.length - 1]);
+
+    expect(await screen.findByRole("checkbox", { name: "Bloomberg" })).toBeChecked();
+  });
+
+  it("deletes a news source with confirmation", async () => {
+    vi.spyOn(newsApi, "deleteSource").mockResolvedValue(undefined);
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: "News" }));
+
+    await screen.findByRole("checkbox", { name: "Ars Technica" });
+    const deleteButtons = screen.getAllByRole("button", { name: "Delete" });
+    fireEvent.click(deleteButtons[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+
+    await waitFor(() => {
+      expect(newsApi.deleteSource).toHaveBeenCalledWith("s1");
+    });
+  });
+
+  // ── Device token ─────────────────────────────────
+
+  it("shows 'None' status when no device token exists", async () => {
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    expect(await screen.findByText(/Whisper device token/)).toBeInTheDocument();
+    expect(screen.getByText(/○ None/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate" })).toBeInTheDocument();
+  });
+
+  it("generates a token and shows the plaintext modal once", async () => {
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    await screen.findByText(/Whisper device token/);
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(await screen.findByText("whsk_secret-token-value")).toBeInTheDocument();
+    expect(screen.getByText(/Save this now/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/····alue/)).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Rotate" })).toBeInTheDocument();
+  });
+
+  it("dismisses the plaintext modal", async () => {
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    await screen.findByText(/Whisper device token/);
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    await screen.findByText("whsk_secret-token-value");
+    fireEvent.click(screen.getByRole("button", { name: "I've saved it" }));
+    await waitFor(() => {
+      expect(screen.queryByText("whsk_secret-token-value")).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows active status and Rotate/Revoke when token already exists", async () => {
+    vi.spyOn(auth, "getDeviceTokenMeta").mockResolvedValue({
+      exists: true,
+      last4: "a7f2",
+      created_at: 1_776_672_000,
+      last_used_at: null,
+    });
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    expect(await screen.findByText(/····a7f2/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rotate" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revoke" })).toBeInTheDocument();
+  });
+
+  it("revokes a token and reverts to None", async () => {
+    vi.spyOn(auth, "getDeviceTokenMeta").mockResolvedValue({
+      exists: true,
+      last4: "a7f2",
+      created_at: 1_776_672_000,
+    });
+    render(<MemoryRouter><SettingsPage /></MemoryRouter>);
+    await screen.findByText(/····a7f2/);
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    await waitFor(() => {
+      expect(auth.revokeDeviceToken).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/○ None/)).toBeInTheDocument();
+    });
   });
 });

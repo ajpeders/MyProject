@@ -40,7 +40,7 @@ cd devTeam
 make test
 ```
 
-`devTeam/Makefile` declares `test: test-api test-agents`, running `pytest daemon/api/test_server.py -q` and the agents test suite via `$(VENV_DIR)/bin/python -m pytest`. `TODO: verify` venv bootstrap (`make venv`) is needed on a fresh checkout.
+`devTeam/Makefile` declares `test: test-api test-agents`, running `pytest daemon/api/test_server.py -q` and the agents test suite via `$(VENV_DIR)/bin/python -m pytest`. `test-api` depends on the `venv` target (`devTeam/Makefile:20`), so `make test` will bootstrap `.venv` automatically on a fresh checkout.
 
 ### MyAgent
 

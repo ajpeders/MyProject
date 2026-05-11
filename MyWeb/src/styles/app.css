@@ -551,6 +551,13 @@
   background: color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 
+.mail-row-btn--folder-rec {
+  border-color: color-mix(in srgb, var(--info-color) 50%, transparent);
+  color: var(--info-color);
+  background: color-mix(in srgb, var(--info-color) 8%, transparent);
+  font-size: 0.75rem;
+}
+
 .mail-move-select {
   padding: 0.2rem 0.4rem;
   background: var(--background-color);
@@ -726,6 +733,16 @@
   max-width: 75ch;
 }
 
+.mail-html-frame {
+  width: 100%;
+  min-height: 400px;
+  height: 100%;
+  border: none;
+  background: #fff;
+  border-radius: 4px;
+  flex: 1;
+}
+
 .mail-body-link {
   color: var(--info-color);
   text-decoration: underline;
@@ -845,6 +862,57 @@
   color: var(--primary-color);
   cursor: pointer;
 }
+
+.mail-sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--secondary-color);
+}
+
+.mail-sort-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--secondary-color);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.mail-sort-btn:hover {
+  border-color: color-mix(in srgb, var(--secondary-color) 40%, transparent);
+}
+
+.mail-sort-btn--active {
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  border-color: color-mix(in srgb, var(--primary-color) 40%, transparent);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.mail-importance {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+}
+
+.mail-importance--1 { background: color-mix(in srgb, var(--secondary-color) 12%, transparent); color: var(--secondary-color); }
+.mail-importance--2 { background: color-mix(in srgb, var(--secondary-color) 20%, transparent); color: var(--secondary-color); }
+.mail-importance--3 { background: color-mix(in srgb, var(--font-color) 10%, transparent); color: var(--font-color); }
+.mail-importance--4 { background: color-mix(in srgb, orange 18%, transparent); color: orange; border-color: color-mix(in srgb, orange 30%, transparent); }
+.mail-importance--5 { background: color-mix(in srgb, red 18%, transparent); color: red; border-color: color-mix(in srgb, red 30%, transparent); }
 
 .mail-actions {
   display: flex;
@@ -1064,7 +1132,8 @@
 .news-page,
 .chat-page,
 .memory-page,
-.myagent-page {
+.myagent-page,
+.whisper-page {
   max-width: 920px;
 }
 
@@ -1072,7 +1141,8 @@
 .news-header,
 .chat-header,
 .memory-header,
-.myagent-header {
+.myagent-header,
+.whisper-header {
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--secondary-color);
@@ -1082,7 +1152,8 @@
 .news-header h1,
 .chat-header h1,
 .memory-header h1,
-.myagent-header h1 {
+.myagent-header h1,
+.whisper-header h1 {
   margin: 0 0 0.25rem;
   font-size: 1.5rem;
   color: var(--primary-color);
@@ -1092,7 +1163,8 @@
 .news-header p,
 .chat-header p,
 .memory-header p,
-.myagent-header p {
+.myagent-header p,
+.whisper-header p {
   margin: 0;
   color: var(--secondary-color);
 }
@@ -1586,216 +1658,437 @@
 
 .settings-page {
   max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .settings-header {
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--secondary-color);
+  margin-bottom: 0.5rem;
 }
 
 .settings-header h1 {
-  margin: 0 0 0.25rem;
+  margin: 0;
   font-size: 1.5rem;
   color: var(--primary-color);
 }
 
-.settings-header p {
+/* ── Cards ─────────────────────────────────── */
+
+.settings-card {
+  border: 1px solid color-mix(in srgb, var(--secondary-color) 40%, transparent);
+  border-radius: 6px;
+  padding: 1.5rem;
+  background: var(--block-background-color);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.settings-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.settings-card-header h2 {
   margin: 0;
+  font-size: 1.1rem;
+  color: var(--font-color);
+}
+
+.settings-card-badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 50%, transparent);
+  color: var(--primary-color);
+}
+
+.settings-card-desc {
+  margin: -0.25rem 0 0;
+  font-size: 0.85rem;
   color: var(--secondary-color);
+  line-height: 1.5;
+}
+
+/* ── Fields ────────────────────────────────── */
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settings-field > label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--secondary-color);
+}
+
+/* ── Inline form (input + button row) ──────── */
+
+.settings-inline-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.settings-inline-form input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 0.55rem 0.75rem;
+  background: var(--background-color);
+  border: 1px solid color-mix(in srgb, var(--secondary-color) 50%, transparent);
+  color: var(--font-color);
+  border-radius: 4px;
   font-size: 0.9rem;
 }
 
-.settings-account-card {
-  border: 1px solid var(--secondary-color);
-  background: var(--block-background-color);
+.settings-inline-form input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.settings-inline-form button {
+  padding: 0.55rem 1rem;
+  background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  color: var(--primary-color);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
   border-radius: 4px;
-  padding: 1rem 1.25rem;
-  margin-bottom: 0.75rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.settings-inline-form button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-color) 25%, transparent);
+}
+
+.settings-inline-form button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── Tags ──────────────────────────────────── */
+
+.settings-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.settings-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 30%, transparent);
+  border-radius: 100px;
+  font-size: 0.8rem;
+  color: var(--primary-color);
+}
+
+.settings-tag button {
+  background: none;
+  border: none;
+  color: var(--secondary-color);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.settings-tag button:hover {
+  color: var(--error-color);
+}
+
+.settings-tag-sm {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+}
+
+/* ── List items ─────────────��──────────────── */
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settings-list-item {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--secondary-color) 25%, transparent);
+  border-radius: 4px;
   flex-wrap: wrap;
 }
 
-.settings-account-info {
+.settings-list-item-info {
   flex: 1;
   min-width: 0;
-}
-
-.settings-account-name {
-  font-weight: bold;
-  font-size: 1rem;
-  margin-bottom: 0.2rem;
-}
-
-.settings-account-meta {
-  font-size: 0.8rem;
-  color: var(--secondary-color);
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
-.settings-account-meta span {
+.settings-list-item-info strong {
+  font-size: 0.9rem;
+}
+
+.settings-list-item-toggle {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-}
-
-.settings-empty {
-  padding: 2rem;
-  text-align: center;
-  color: var(--secondary-color);
-  border: 1px dashed var(--secondary-color);
-  border-radius: 4px;
-  margin: 1rem 0;
-}
-
-.settings-api-key-form {
-  border: 1px solid var(--secondary-color);
-  border-radius: 4px;
-  margin: 1rem 0;
-  padding: 1rem;
-}
-
-.settings-api-key-form label {
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.settings-api-key-row {
-  display: flex;
-  flex-wrap: wrap;
   gap: 0.5rem;
-}
-
-.settings-api-key-row input {
-  flex: 1 1 280px;
-  min-width: 0;
-}
-
-.settings-mail-model-picker {
-  position: relative;
-}
-
-.settings-model-options {
-  margin-top: 0.5rem;
-  border: 1px solid var(--secondary-color);
-  border-radius: 4px;
-  background: var(--block-background-color);
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.settings-model-option {
-  width: 100%;
-  text-align: left;
-  padding: 0.65rem 0.75rem;
-  background: transparent;
-  color: var(--font-color);
-  border: none;
-  border-bottom: 1px solid color-mix(in srgb, var(--secondary-color) 45%, transparent);
   cursor: pointer;
 }
 
-.settings-model-option:last-child {
-  border-bottom: none;
+.settings-list-item-toggle input[type="checkbox"] {
+  accent-color: var(--primary-color);
 }
 
-.settings-model-option:hover,
-.settings-model-option.active {
-  background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+.settings-list-item-actions {
+  flex-shrink: 0;
 }
 
-.settings-notice {
+.settings-meta {
+  font-size: 0.75rem;
+  color: var(--secondary-color);
+}
+
+.settings-source-link {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.settings-source-link:hover {
   color: var(--primary-color);
-  margin-bottom: 0;
 }
 
-.settings-add-form {
-  border: 1px solid var(--primary-color);
-  background: var(--block-background-color);
+/* ── Source form ────────────────────────────── */
+
+.settings-source-form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.settings-source-form input,
+.settings-source-form select {
+  padding: 0.5rem 0.65rem;
+  background: var(--background-color);
+  border: 1px solid color-mix(in srgb, var(--secondary-color) 50%, transparent);
+  color: var(--font-color);
   border-radius: 4px;
-  padding: 1.5rem;
-  margin-top: 1.5rem;
+  font-size: 0.85rem;
 }
 
-.settings-add-form h2 {
-  margin: 0 0 1.25rem;
-  font-size: 1rem;
+.settings-source-form input:focus,
+.settings-source-form select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.settings-source-form .settings-source-url {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.settings-source-form button {
+  padding: 0.5rem 1rem;
+  background: color-mix(in srgb, var(--primary-color) 15%, transparent);
+  color: var(--primary-color);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 40%, transparent);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.15s;
+}
+
+.settings-source-form button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-color) 25%, transparent);
+}
+
+.settings-source-form button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ── Sub-card (nested forms) ───────────────── */
+
+.settings-sub-card {
+  border: 1px solid var(--primary-color);
+  border-radius: 4px;
+  padding: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.settings-sub-card h3 {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
   color: var(--primary-color);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-.settings-add-form form {
+.settings-form-stack {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
-.settings-add-form label {
+.settings-form-stack label {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.settings-form-stack input {
+  padding: 0.55rem 0.75rem;
+  background: var(--background-color);
+  border: 1px solid color-mix(in srgb, var(--secondary-color) 50%, transparent);
+  color: var(--font-color);
+  border-radius: 4px;
   font-size: 0.9rem;
 }
 
-.settings-add-form input[type="text"],
-.settings-add-form input[type="password"] {
-  padding: 0.6rem;
-  background: var(--background-color);
-  border: 1px solid var(--secondary-color);
-  color: var(--font-color);
-  border-radius: 3px;
-  font-size: 0.95rem;
-}
-
-.settings-add-form input[type="text"]:focus,
-.settings-add-form input[type="password"]:focus {
+.settings-form-stack input:focus {
   outline: none;
   border-color: var(--primary-color);
 }
 
-.settings-error {
-  color: var(--error-color);
-  font-size: 0.9rem;
-}
-
-.settings-add-actions {
+.settings-form-actions {
   display: flex;
   gap: 0.5rem;
-  padding-top: 0.5rem;
+  padding-top: 0.25rem;
 }
 
-.settings-add-actions button[type="submit"],
-.add-account-btn {
-  padding: 0.6rem 1.5rem;
+.settings-form-actions button[type="submit"] {
+  padding: 0.55rem 1.25rem;
   background: var(--primary-color);
   color: var(--invert-font-color);
   border: none;
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
-.settings-add-actions button[type="button"]:last-child {
-  padding: 0.6rem 1rem;
+/* ── Buttons ───────────────────────────────── */
+
+.settings-btn-outline {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: var(--secondary-color);
+  border: 1px solid color-mix(in srgb, var(--secondary-color) 50%, transparent);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  align-self: flex-start;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.settings-btn-outline:hover:not(:disabled) {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.settings-btn-outline:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.settings-btn-ghost {
+  padding: 0.55rem 1rem;
   background: transparent;
   color: var(--secondary-color);
   border: 1px solid var(--secondary-color);
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
-.settings-account-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-shrink: 0;
+/* ── Utilities ─────────────────────────────── */
+
+.settings-hint {
+  font-size: 0.85rem;
+  color: var(--secondary-color);
+  margin: 0;
 }
+
+.settings-section-divider {
+  margin: 0.5rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--secondary-color) 25%, transparent);
+  font-size: 0.9rem;
+  color: var(--font-color);
+}
+
+/* ── Tabs ──────────────────────────────────── */
+
+.settings-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--secondary-color) 30%, transparent);
+  margin-bottom: 0;
+}
+
+.settings-tab {
+  padding: 0.6rem 1.25rem;
+  background: transparent;
+  color: var(--secondary-color);
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.settings-tab:hover {
+  color: var(--font-color);
+}
+
+.settings-tab.is-active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+}
+
+/* ── Panel (tab content) ───────────────────── */
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem 0;
+}
+
+.settings-panel h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--font-color);
+}
+
+.settings-panel-desc {
+  margin: -0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--secondary-color);
+  line-height: 1.5;
+}
+
+/* kept: shared utility classes used across pages */
 
 .settings-confirm-delete {
   display: flex;
@@ -1806,7 +2099,7 @@
 }
 
 .cancel-btn {
-  padding: 0.4rem 0.75rem;
+  padding: 0.35rem 0.65rem;
   background: transparent;
   color: var(--secondary-color);
   border: 1px solid var(--secondary-color);
@@ -1816,7 +2109,7 @@
 }
 
 .delete-btn {
-  padding: 0.4rem 0.75rem;
+  padding: 0.35rem 0.65rem;
   background: transparent;
   color: var(--error-color);
   border: 1px solid var(--error-color);
@@ -1829,22 +2122,6 @@
 .delete-btn:hover {
   background: var(--error-color);
   color: var(--invert-font-color);
-}
-
-.toggle-pass-btn {
-  background: transparent;
-  border: 1px solid var(--secondary-color);
-  color: var(--secondary-color);
-  padding: 0.4rem 0.75rem;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 0.8rem;
-  flex-shrink: 0;
-}
-
-.toggle-pass-btn:hover {
-  color: var(--primary-color);
-  border-color: var(--primary-color);
 }
 
 .auth-page {
@@ -3241,4 +3518,306 @@
   color: var(--secondary-color);
   font-size: 0.85rem;
   margin: 0;
+}
+
+.whisper-mode {
+  display: inline-flex;
+  gap: 0;
+  margin-bottom: 1rem;
+  border: 1px solid var(--secondary-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.whisper-mode-btn {
+  padding: 0.4rem 1rem;
+  background: transparent;
+  border: none;
+  color: var(--secondary-color);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.whisper-mode-btn.is-active {
+  background: var(--primary-color);
+  color: var(--invert-font-color);
+}
+
+.whisper-mode-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.whisper-agent-card {
+  border: 1px solid var(--primary-color);
+  background: var(--block-background-color);
+  border-radius: 4px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.whisper-agent-transcript,
+.whisper-agent-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.whisper-agent-label {
+  color: var(--secondary-color);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.whisper-agent-transcript p,
+.whisper-agent-reply p {
+  margin: 0;
+}
+
+.whisper-agent-reply p {
+  font-size: 1.05rem;
+  color: var(--primary-color);
+}
+
+.whisper-agent-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.whisper-tool-chip {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 12px;
+  background: var(--code-bg-color);
+  color: var(--primary-color);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--primary-color);
+}
+
+.whisper-tool-link {
+  background: transparent;
+  border: 1px solid var(--secondary-color);
+  color: var(--font-color);
+  padding: 0.15rem 0.6rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
+.whisper-tool-link:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.whisper-agent-error {
+  color: var(--error-color);
+  font-size: 0.85rem;
+}
+
+.whisper-recorder {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.whisper-status {
+  color: var(--secondary-color);
+  font-size: 0.9rem;
+}
+
+.whisper-error {
+  color: var(--error-color);
+  background: var(--block-background-color);
+  border: 1px solid var(--error-color);
+  border-radius: 4px;
+  padding: 0.6rem 0.8rem;
+  margin: 0 0 1rem;
+}
+
+.whisper-empty {
+  color: var(--secondary-color);
+  font-style: italic;
+  margin: 0;
+}
+
+.whisper-latest,
+.whisper-history {
+  border: 1px solid var(--secondary-color);
+  background: var(--block-background-color);
+  border-radius: 4px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.whisper-latest h2,
+.whisper-history h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  color: var(--primary-color);
+}
+
+.whisper-latest pre {
+  background: var(--code-bg-color);
+  padding: 0.75rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 0;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}
+
+.whisper-history ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.whisper-history-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-top: 1px solid var(--secondary-color);
+  padding: 0.5rem 0;
+}
+
+.whisper-history-row:first-child {
+  border-top: none;
+}
+
+.whisper-history-text {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--font-color);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.whisper-history-text:hover {
+  background: var(--code-bg-color);
+  border-radius: 3px;
+}
+
+.whisper-badge {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.whisper-badge-web {
+  background: var(--info-color);
+  color: var(--invert-font-color);
+}
+
+.whisper-badge-shortcut {
+  background: var(--primary-color);
+  color: var(--invert-font-color);
+}
+
+.whisper-history-time,
+.whisper-history-duration {
+  color: var(--secondary-color);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+
+.whisper-history-snippet {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.whisper-history-delete {
+  background: transparent;
+  border: 1px solid var(--secondary-color);
+  color: var(--secondary-color);
+  border-radius: 3px;
+  padding: 0.1rem 0.5rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.whisper-history-delete:hover {
+  border-color: var(--error-color);
+  color: var(--error-color);
+}
+
+.whisper-history-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.device-token-section {
+  border: 1px solid var(--secondary-color);
+  background: var(--block-background-color);
+  border-radius: 4px;
+  padding: 1rem;
+  margin-top: 1.5rem;
+}
+
+.device-token-section h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  color: var(--primary-color);
+}
+
+.device-token-section p {
+  margin: 0 0 0.75rem;
+  color: var(--secondary-color);
+  font-size: 0.85rem;
+}
+
+.device-token-status {
+  margin: 0.5rem 0;
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+.device-token-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.device-token-modal {
+  border: 1px solid var(--primary-color);
+  background: var(--code-bg-color);
+  border-radius: 4px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.device-token-modal pre {
+  background: var(--background-color);
+  padding: 0.6rem;
+  border-radius: 3px;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+  user-select: all;
+}
+
+.device-token-warning {
+  color: var(--error-color);
+  font-size: 0.8rem;
+  margin: 0.5rem 0;
 }

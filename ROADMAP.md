@@ -44,7 +44,7 @@ See `STABLE_RELEASE_PLAN.md`'s execution log for the per-chunk audit trail.
 
 - **Stable release**: see `STABLE_RELEASE_PLAN.md` for the active release-stabilization plan (release blockers, doc truth-up, missing-doc creation, mail bug sweep, release tag).
 - **Naming-collision rename**: `MyAgent/README.md` is mistitled `# MyDevTeam` and should be renamed to match the actual service. Flagged in `ARCHITECTURE.md` as a follow-up.
-- **Bootstrap docs**: nested `.git` repos in `devTeam/` and `MyAgent/` mean a fresh clone of `MyProject` does not pull subproject code. `TODO: verify` whether a bootstrap script exists or one is planned.
+- **Bootstrap docs**: nested `.git` repos in `devTeam/` and `MyAgent/` mean a fresh clone of `MyProject` does not pull subproject code. No bootstrap/clone-all script exists today — a future cleanup item.
 
 ## Out of scope here
 

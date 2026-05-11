@@ -12,6 +12,7 @@ import DevTeamPage from "./tools/devteam/DevTeamPage";
 import AdminPage from "./tools/admin/AdminPage";
 import LoginPage from "./tools/LoginPage";
 import SettingsPage from "./tools/SettingsPage";
+import WhisperPage from "./tools/whisper/WhisperPage";
 import { isAuthenticated, isAdmin } from "./api/auth";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -52,6 +53,7 @@ export default function App() {
             }
           />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/whisper" element={<WhisperPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

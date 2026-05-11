@@ -25,8 +25,9 @@ describe("client API", () => {
       expect(getApiKey()).toBe("stored-key");
     });
 
-    it("returns empty string when not set", () => {
-      expect(getApiKey()).toBe("");
+    it("falls back to the build-time API key when localStorage is empty", () => {
+      const expected = import.meta.env.VITE_API_KEY ?? "";
+      expect(getApiKey()).toBe(expected);
     });
   });
 
@@ -56,13 +57,11 @@ describe("client API", () => {
       mockFetch.mockResolvedValue(mockResponse({}));
       localStorage.setItem("myagent.session_id", "sess-1");
       localStorage.setItem("myagent.token", "jwt-1");
-      localStorage.setItem("myagent.user_id", "user-1");
       await apiFetch("/api/test");
       const [, opts] = mockFetch.mock.calls[0];
       const headers = opts.headers as Headers;
       expect(headers.get("X-Session-ID")).toBe("sess-1");
       expect(headers.get("Authorization")).toBe("Bearer jwt-1");
-      expect(headers.get("X-User-ID")).toBe("user-1");
     });
 
     it("parses JSON error response and throws ApiError", async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import NewsPage from "./NewsPage";
 import * as newsApi from "../../api/news";
 
@@ -39,7 +40,7 @@ describe("NewsPage", () => {
   });
 
   it("shows For You tab selected by default with curated articles", async () => {
-    render(<NewsPage />);
+    render(<MemoryRouter><NewsPage /></MemoryRouter>);
 
     expect(screen.getByRole("tab", { name: "For You" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByText("Curated pick")).toBeInTheDocument();
@@ -48,7 +49,7 @@ describe("NewsPage", () => {
   });
 
   it("switches to a topic tab and fetches regular articles", async () => {
-    render(<NewsPage />);
+    render(<MemoryRouter><NewsPage /></MemoryRouter>);
     await screen.findByText("Curated pick");
 
     fireEvent.click(screen.getByRole("tab", { name: "All" }));
@@ -64,7 +65,7 @@ describe("NewsPage", () => {
       { id: "a3", source_id: "s2", source_label: "The Guardian", title: "World event", topic: "World", url: "https://guardian.com/1", published_at: "2026-04-28T08:00:00Z", summary: "World summary" },
     ];
 
-    render(<NewsPage />);
+    render(<MemoryRouter><NewsPage /></MemoryRouter>);
     await screen.findByText("Curated pick");
 
     // Switch to All first
@@ -80,7 +81,7 @@ describe("NewsPage", () => {
 
   it("shows empty state when no articles match", async () => {
     vi.spyOn(newsApi, "getArticles").mockResolvedValue({ articles: [] });
-    render(<NewsPage />);
+    render(<MemoryRouter><NewsPage /></MemoryRouter>);
     await screen.findByText("Curated pick");
 
     fireEvent.click(screen.getByRole("tab", { name: "All" }));
@@ -90,13 +91,13 @@ describe("NewsPage", () => {
 
   it("shows empty state for curated when no picks exist", async () => {
     vi.spyOn(newsApi, "getCuratedFeed").mockResolvedValue({ articles: [] });
-    render(<NewsPage />);
+    render(<MemoryRouter><NewsPage /></MemoryRouter>);
 
-    expect(await screen.findByText("Set up your interests in Settings to get personalized picks.")).toBeInTheDocument();
+    expect(await screen.findByText(/Set up your interests/)).toBeInTheDocument();
   });
 
   it("does not show source management controls", async () => {
-    render(<NewsPage />);
+    render(<MemoryRouter><NewsPage /></MemoryRouter>);
     await screen.findByText("Curated pick");
 
     expect(screen.queryByLabelText("Source name")).not.toBeInTheDocument();
@@ -105,7 +106,7 @@ describe("NewsPage", () => {
 
   it("shows a refresh button that fetches new articles", async () => {
     vi.spyOn(newsApi, "refreshFeeds").mockResolvedValue({ new_articles: 1 });
-    render(<NewsPage />);
+    render(<MemoryRouter><NewsPage /></MemoryRouter>);
     await screen.findByText("Curated pick");
 
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
@@ -117,13 +118,13 @@ describe("NewsPage", () => {
 
   it("shows error state on API failure", async () => {
     vi.spyOn(newsApi, "getCuratedFeed").mockRejectedValue(new Error("Network error"));
-    render(<NewsPage />);
+    render(<MemoryRouter><NewsPage /></MemoryRouter>);
 
     expect(await screen.findByText("Network error")).toBeInTheDocument();
   });
 
   it("renders curated article titles as links", async () => {
-    render(<NewsPage />);
+    render(<MemoryRouter><NewsPage /></MemoryRouter>);
 
     const link = await screen.findByRole("link", { name: "Curated pick" });
     expect(link).toHaveAttribute("href", "https://arstechnica.com/1");
@@ -131,7 +132,7 @@ describe("NewsPage", () => {
   });
 
   it("shows thumbs up/down buttons on curated articles", async () => {
-    render(<NewsPage />);
+    render(<MemoryRouter><NewsPage /></MemoryRouter>);
     await screen.findByText("Curated pick");
 
     expect(screen.getByRole("button", { name: "Thumbs up" })).toBeInTheDocument();
@@ -139,7 +140,7 @@ describe("NewsPage", () => {
   });
 
   it("calls rateCurated when thumbs up is clicked", async () => {
-    render(<NewsPage />);
+    render(<MemoryRouter><NewsPage /></MemoryRouter>);
     await screen.findByText("Curated pick");
 
     fireEvent.click(screen.getByRole("button", { name: "Thumbs up" }));

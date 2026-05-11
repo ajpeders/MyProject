@@ -60,3 +60,28 @@ export function logout() {
   localStorage.removeItem("myagent.account");
   localStorage.removeItem("myagent.email");
 }
+
+export interface DeviceTokenCreated {
+  token: string;
+  last4: string;
+  created_at: number;
+}
+
+export interface DeviceTokenMeta {
+  exists: boolean;
+  last4?: string;
+  created_at?: number;
+  last_used_at?: number | null;
+}
+
+export async function createOrRotateDeviceToken(): Promise<DeviceTokenCreated> {
+  return apiFetch<DeviceTokenCreated>("/api/auth/device-token", { method: "POST" });
+}
+
+export async function getDeviceTokenMeta(): Promise<DeviceTokenMeta> {
+  return apiFetch<DeviceTokenMeta>("/api/auth/device-token");
+}
+
+export async function revokeDeviceToken(): Promise<void> {
+  await apiFetch("/api/auth/device-token", { method: "DELETE" });
+}

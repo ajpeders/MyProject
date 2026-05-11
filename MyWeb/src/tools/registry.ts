@@ -55,4 +55,9 @@ export const tools: ToolEntry[] = [
     path: "/settings",
     description: "Manage IMAP accounts and preferences",
   },
+  {
+    name: "Whisper",
+    path: "/whisper",
+    description: "Test surface for voice transcription (temporary)",
+  },
 ];
