@@ -9,7 +9,12 @@ import { getMailConfig, updateMailConfig } from "../../api/mailConfig";
 import { useSyncProgress } from "./useSyncProgress";
 
 const COMMON_FOLDERS = ["Inbox", "Archive", "Trash", "Spam", "Sent", "Drafts"];
-const DEV_MODE = import.meta.env.VITE_DEV_MODE === "true";
+const REC_PRIORITY: Record<string, number> = { reply: 0, todo: 1, calendar: 2, review: 3, archive: 4, delete: 5 };
+// DEV_MODE gates dev-only UI (seed buttons, re-analyze, fetch-only). We
+// require BOTH the explicit VITE_DEV_MODE opt-in AND Vite's built-in DEV
+// flag so production builds never leak these affordances even if a stale
+// .env leaves VITE_DEV_MODE=true.
+const DEV_MODE = import.meta.env.DEV && import.meta.env.VITE_DEV_MODE === "true";
 
 function sortEmailsNewestFirst(emails: MailSummary[]): MailSummary[] {
   return [...emails].sort((a, b) => {
@@ -91,6 +96,7 @@ interface MailState {
   error: string;
   selectedIndex: number | null;
   emailContent: string;
+  emailContentHtml: string;
   highlightedPos: number;
   accounts: ImapAccount[];
   activeAccount: string;
@@ -114,6 +120,9 @@ interface MailState {
   feedbackNotice: string;
   feedbackText: string;
   searchQuery: string;
+  unreadOnly: boolean;
+  sortMode: "time" | "importance" | "recommendation";
+  selectedIndices: Set<number>;
   attachments: AttachmentMeta[];
 }
 
@@ -126,6 +135,7 @@ const initialMailState = (cachedEmails: MailSummary[]): MailState => ({
   error: "",
   selectedIndex: null,
   emailContent: sessionStorage.getItem("myagent.content") ?? "",
+  emailContentHtml: "",
   highlightedPos: 0,
   accounts: [],
   activeAccount: "",
@@ -149,6 +159,9 @@ const initialMailState = (cachedEmails: MailSummary[]): MailState => ({
   feedbackNotice: "",
   feedbackText: "",
   searchQuery: "",
+  unreadOnly: false,
+  sortMode: "time",
+  selectedIndices: new Set(),
   attachments: [],
 });
 
@@ -158,7 +171,7 @@ type MailAction =
   | { type: "SET_EMAILS"; emails: MailSummary[]; page: number | null; totalPages: number | null; totalEmails: number | null; content?: string }
   | { type: "SET_LOADING"; loading: boolean }
   | { type: "SET_ERROR"; error: string }
-  | { type: "OPEN_EMAIL"; index: number; content: string; attachments: AttachmentMeta[] }
+  | { type: "OPEN_EMAIL"; index: number; content: string; contentHtml: string; attachments: AttachmentMeta[] }
   | { type: "CLOSE_EMAIL" }
   | { type: "SET_HIGHLIGHTED_POS"; pos: number }
   | { type: "SET_FOLDERS"; folders: string[] }
@@ -183,6 +196,11 @@ type MailAction =
   | { type: "SET_FEEDBACK_NOTICE"; value: string }
   | { type: "SET_FEEDBACK_TEXT"; value: string }
   | { type: "SET_SEARCH_QUERY"; value: string }
+  | { type: "SET_UNREAD_ONLY"; value: boolean }
+  | { type: "SET_SORT_MODE"; value: "time" | "importance" | "recommendation" }
+  | { type: "TOGGLE_SELECT"; index: number }
+  | { type: "SELECT_ALL"; indices: number[] }
+  | { type: "CLEAR_SELECTION" }
   | { type: "REMOVE_EMAIL"; index: number }
   | { type: "CLEAR_VIEW" }
   | { type: "RESET_MAIL_CHECKED" }
@@ -199,6 +217,7 @@ function mailReducer(state: MailState, action: MailAction): MailState {
         totalEmails: action.totalEmails,
         emailContent: action.content ?? state.emailContent,
         highlightedPos: 0,
+        selectedIndices: new Set(),
       };
     case "SET_LOADING":
       return { ...state, loading: action.loading };
@@ -212,6 +231,7 @@ function mailReducer(state: MailState, action: MailAction): MailState {
         ),
         selectedIndex: action.index,
         emailContent: action.content,
+        emailContentHtml: action.contentHtml,
         attachments: action.attachments,
         confirmDelete: false,
         moveFolder: "",
@@ -224,6 +244,7 @@ function mailReducer(state: MailState, action: MailAction): MailState {
         ...state,
         selectedIndex: null,
         emailContent: "",
+        emailContentHtml: "",
         confirmDelete: false,
         moveFolder: "",
         actionError: "",
@@ -280,6 +301,20 @@ function mailReducer(state: MailState, action: MailAction): MailState {
       return { ...state, feedbackText: action.value };
     case "SET_SEARCH_QUERY":
       return { ...state, searchQuery: action.value, highlightedPos: 0 };
+    case "SET_UNREAD_ONLY":
+      return { ...state, unreadOnly: action.value, highlightedPos: 0 };
+    case "SET_SORT_MODE":
+      return { ...state, sortMode: action.value, highlightedPos: 0 };
+    case "TOGGLE_SELECT": {
+      const next = new Set(state.selectedIndices);
+      if (next.has(action.index)) next.delete(action.index);
+      else next.add(action.index);
+      return { ...state, selectedIndices: next };
+    }
+    case "SELECT_ALL":
+      return { ...state, selectedIndices: new Set(action.indices) };
+    case "CLEAR_SELECTION":
+      return { ...state, selectedIndices: new Set() };
     case "REMOVE_EMAIL": {
       const next = state.emails.filter((e) => e.index !== action.index);
       return {
@@ -337,6 +372,9 @@ export default function MailPage() {
     if (state.activeAccount) {
       result = result.filter((e) => e.account === state.activeAccount);
     }
+    if (state.unreadOnly) {
+      result = result.filter((e) => e.read === false);
+    }
     const q = state.searchQuery.trim().toLowerCase();
     if (q) {
       result = result.filter((e) =>
@@ -346,8 +384,23 @@ export default function MailPage() {
         (e.date ?? "").toLowerCase().includes(q)
       );
     }
+    if (state.sortMode === "importance") {
+      result = [...result].sort((a, b) => {
+        const diff = (b.importance ?? 3) - (a.importance ?? 3);
+        if (diff !== 0) return diff;
+        return (b.date ?? "").localeCompare(a.date ?? "");
+      });
+    } else if (state.sortMode === "recommendation") {
+      result = [...result].sort((a, b) => {
+        const aP = REC_PRIORITY[recommendationClass(a)] ?? 6;
+        const bP = REC_PRIORITY[recommendationClass(b)] ?? 6;
+        if (aP !== bP) return aP - bP;
+        return (b.date ?? "").localeCompare(a.date ?? "");
+      });
+    }
+    // "time" is the default — emails already sorted newest-first from SET_EMAILS
     return result;
-  }, [state.emails, state.activeAccount, state.searchQuery]);
+  }, [state.emails, state.activeAccount, state.unreadOnly, state.searchQuery, state.sortMode]);
 
   const accountNames = useMemo(() => {
     const names = new Set<string>();
@@ -380,7 +433,10 @@ export default function MailPage() {
         dispatch({ type: "SET_ACCOUNTS", accounts: data });
         if (data.length > 0) {
           dispatch({ type: "SET_ACTIVE_ACCOUNT", name: data[0].name });
-        } else if (cachedEmails.length === 0 && !DEV_MODE) {
+        } else if (cachedEmails.length === 0) {
+          // Show the onboarding banner whenever no IMAP accounts are
+          // configured — including in DEV_MODE. Previously gated by
+          // !DEV_MODE which left dev users on a blank list with no prompt.
           dispatch({ type: "SET_SETUP_REQUIRED" });
         }
       })
@@ -457,15 +513,29 @@ export default function MailPage() {
       dispatch({ type: "SET_ERROR", error: "" });
       try {
         const response = await readMail(index);
-        const content = response.body || "No content available.";
+        // Defensive guards: backend may return malformed/empty body on edge cases.
+        if (!response || typeof response !== "object") {
+          throw new Error("Mail server returned an empty response.");
+        }
+        const content = (typeof response.body === "string" && response.body) || "No content available.";
+        const contentHtml = typeof response.body_html === "string" ? response.body_html : "";
+        const attachments = Array.isArray(response.attachments) ? response.attachments : [];
         const nextEmails = stateRef.current.emails.map((email) =>
           email.index === index ? { ...email, read: true } : email
         );
         saveCachedEmails(nextEmails);
-        dispatch({ type: "OPEN_EMAIL", index, content, attachments: response.attachments ?? [] });
+        dispatch({ type: "OPEN_EMAIL", index, content, contentHtml, attachments });
         sessionStorage.setItem("myagent.content", content);
-      } catch {
-        dispatch({ type: "OPEN_EMAIL", index: -1, content: "Failed to load email.", attachments: [] });
+      } catch (err) {
+        let message: string;
+        if (err instanceof ApiError && (err.status === 404 || err.status === 400)) {
+          message = "Mail session not active — hit sync, or open settings to configure an IMAP account.";
+        } else if (err instanceof Error && err.message) {
+          message = err.message;
+        } else {
+          message = "Failed to load email.";
+        }
+        dispatch({ type: "SET_ERROR", error: message });
       } finally {
         dispatch({ type: "SET_LOADING", loading: false });
         dispatch({ type: "SET_LOADING_LABEL", value: "" });
@@ -519,7 +589,7 @@ export default function MailPage() {
     dispatch({ type: "SET_ERROR", error: "" });
     try {
       const accountName = current.activeAccount;
-      const response = await fetchMail({ account: accountName, count: 10, preferences: current.preferences, folder: current.activeFolder });
+      const response = await fetchMail({ account: accountName, count: 10, unread_only: current.unreadOnly, preferences: current.preferences, folder: current.activeFolder });
       dispatch({
         type: "SET_EMAILS",
         emails: response.emails,
@@ -566,13 +636,32 @@ export default function MailPage() {
     }
   }
 
+  async function handleBulkMove(folder: string) {
+    const indices = [...stateRef.current.selectedIndices];
+    if (indices.length === 0) return;
+    dispatch({ type: "SET_ACTION_LOADING", value: true });
+    dispatch({ type: "SET_ACTION_ERROR", error: "" });
+    try {
+      await moveMail(indices, folder);
+      for (const idx of indices) dispatch({ type: "REMOVE_EMAIL", index: idx });
+      const remaining = stateRef.current.emails.filter((e) => !indices.includes(e.index));
+      saveCachedEmails(remaining);
+      dispatch({ type: "CLEAR_SELECTION" });
+      dispatch({ type: "CLOSE_EMAIL" });
+    } catch (err) {
+      dispatch({ type: "SET_ACTION_ERROR", error: err instanceof Error ? err.message : "Bulk move failed" });
+    } finally {
+      dispatch({ type: "SET_ACTION_LOADING", value: false });
+    }
+  }
+
   async function handleFetchOnly() {
     syncProgress.start("fetch");
     dispatch({ type: "SET_LOADING", loading: true });
     dispatch({ type: "SET_LOADING_LABEL", value: "Fetching emails (no analysis)..." });
     dispatch({ type: "SET_ERROR", error: "" });
     try {
-      const response = await fetchMailOnly({ count: 10, folder: stateRef.current.activeFolder });
+      const response = await fetchMailOnly({ count: 10, unread_only: stateRef.current.unreadOnly, folder: stateRef.current.activeFolder });
       dispatch({
         type: "SET_EMAILS",
         emails: response.emails,
@@ -815,7 +904,18 @@ export default function MailPage() {
         <div className="mail-hero-status" role="status">
           <strong>{status}</strong>
           <span>{totalCount} total</span>
-          <span>{unreadCount} unread</span>
+          <button
+            type="button"
+            className={["mail-unread-toggle", state.unreadOnly ? "mail-unread-toggle--active" : ""].filter(Boolean).join(" ")}
+            onClick={() => {
+              const next = !state.unreadOnly;
+              dispatch({ type: "SET_UNREAD_ONLY", value: next });
+              if (next) void fetchLatestMail();
+            }}
+            title={state.unreadOnly ? "Show all emails" : "Show only unread emails"}
+          >
+            {unreadCount} unread
+          </button>
         </div>
       </header>
 
@@ -874,13 +974,33 @@ export default function MailPage() {
                     type="button"
                     onClick={() => void handleAnalyze()}
                     disabled={state.loading || filteredEmails.length === 0}
-                    title={filteredEmails.length === 0 ? "No emails loaded to analyze" : "Re-run AI analysis on current emails"}
+                    title={
+                      state.loading
+                        ? "Wait for the current operation to finish before re-analyzing"
+                        : filteredEmails.length === 0
+                          ? "No emails loaded to analyze"
+                          : "Re-run AI analysis on current emails"
+                    }
                   >
                     re-analyze (for dev)
                   </button>
                 </>
               )}
             </div>
+          </div>
+
+          <div className="mail-sort-bar">
+            <span>Sort:</span>
+            {(["time", "importance", "recommendation"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={state.sortMode === mode ? "mail-sort-btn mail-sort-btn--active" : "mail-sort-btn"}
+                onClick={() => dispatch({ type: "SET_SORT_MODE", value: mode })}
+              >
+                {mode}
+              </button>
+            ))}
           </div>
 
           <div className="mail-search-bar">
@@ -896,9 +1016,9 @@ export default function MailPage() {
               type="button"
               onClick={() => void handleServerSearch()}
               disabled={state.loading || !state.searchQuery.trim()}
-              title="Search all emails on the server (not just loaded ones)"
+              title="Typing filters loaded emails instantly. This button queries the IMAP server for all matching emails (slower, hits the network)."
             >
-              search server
+              search all mail (server)
             </button>
             {state.searchQuery.trim() && (
               <button
@@ -910,7 +1030,65 @@ export default function MailPage() {
             )}
           </div>
 
-          {filteredEmails.length > 0 ? (
+          {state.selectedIndices.size > 0 && (
+            <div className="mail-bulk-bar">
+              <label className="mail-bulk-check">
+                <input
+                  type="checkbox"
+                  checked={filteredEmails.length > 0 && filteredEmails.every((e) => state.selectedIndices.has(e.index))}
+                  onChange={() => {
+                    const allSelected = filteredEmails.every((e) => state.selectedIndices.has(e.index));
+                    if (allSelected) dispatch({ type: "CLEAR_SELECTION" });
+                    else dispatch({ type: "SELECT_ALL", indices: filteredEmails.map((e) => e.index) });
+                  }}
+                />
+                {state.selectedIndices.size} selected
+              </label>
+              <button type="button" className="mail-row-btn" onClick={() => void handleBulkMove("Archive")} disabled={state.actionLoading}>
+                archive
+              </button>
+              <select
+                className="mail-move-select"
+                value=""
+                onChange={(e) => { if (e.target.value) void handleBulkMove(e.target.value); e.target.value = ""; }}
+                disabled={state.actionLoading}
+              >
+                <option value="">move to...</option>
+                {(state.folders.length > 0 ? state.folders : COMMON_FOLDERS)
+                  .filter((f) => f.toLowerCase() !== state.activeFolder.toLowerCase())
+                  .map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+              <button
+                type="button"
+                className="mail-row-btn mail-row-btn--danger"
+                onClick={() => { if (window.confirm(`Delete ${state.selectedIndices.size} emails?`)) void handleBulkMove("Trash"); }}
+                disabled={state.actionLoading}
+              >
+                delete
+              </button>
+              <button type="button" className="mail-row-btn" onClick={() => dispatch({ type: "CLEAR_SELECTION" })}>
+                cancel
+              </button>
+            </div>
+          )}
+
+          {state.loading && filteredEmails.length === 0 ? (
+            <ul className="mail-list" aria-busy="true">
+              {Array.from({ length: 5 }, (_, i) => (
+                <li key={`skel-${i}`} className="mail-list-item mail-skeleton" aria-hidden="true">
+                  <div className="mail-item-header">
+                    <div className="mail-item-header-left">
+                      <span className="mail-skel-block" style={{ width: "3rem" }} />
+                      <span className="mail-skel-block" style={{ width: "5rem" }} />
+                      <span className="mail-skel-block" style={{ width: "10rem" }} />
+                    </div>
+                    <span className="mail-skel-block" style={{ width: "5.5rem" }} />
+                  </div>
+                  <div className="mail-skel-block" style={{ width: `${55 + i * 7}%`, height: "1rem" }} />
+                </li>
+              ))}
+            </ul>
+          ) : filteredEmails.length > 0 ? (
             <ul className="mail-list">
               {filteredEmails.map((email, pos) => (
                 <li
@@ -928,8 +1106,26 @@ export default function MailPage() {
                 >
                   <div className="mail-item-header">
                     <div className="mail-item-header-left">
+                      <input
+                        type="checkbox"
+                        className="mail-item-checkbox"
+                        checked={state.selectedIndices.has(email.index)}
+                        onChange={() => dispatch({ type: "TOGGLE_SELECT", index: email.index })}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`Select "${email.subject || "(no subject)"}"`}
+                      />
                       {email.read === false ? <span className="mail-unread-dot" aria-label="Unread" title="Unread" /> : null}
-                      <span className={`rec-badge rec-${recommendationClass(email)}`}>{recommendationLabel(email)}</span>
+                      <span
+                        className={`rec-badge rec-${recommendationClass(email)}`}
+                        title={email.recommendation_reason || undefined}
+                      >
+                        {recommendationLabel(email)}
+                      </span>
+                      {email.importance != null ? (
+                        <span className={`mail-importance mail-importance--${email.importance}`} title={`Importance: ${email.importance}/5`}>
+                          {email.importance}
+                        </span>
+                      ) : null}
                       {hasAnalysis(email) ? (
                         <span className="mail-analysis-done" aria-label="AI processed" title="AI processed">
                           ★
@@ -962,6 +1158,17 @@ export default function MailPage() {
                       ))}
                     </div>
                     <div className="mail-item-actions" onClick={(e) => e.stopPropagation()}>
+                      {email.recommended_folder && email.recommended_folder.toLowerCase() !== state.activeFolder.toLowerCase() ? (
+                        <button
+                          type="button"
+                          className="mail-row-btn mail-row-btn--folder-rec"
+                          onClick={() => void handleMove(email.index, email.recommended_folder!)}
+                          disabled={state.actionLoading}
+                          title={`AI recommends: move to ${email.recommended_folder}`}
+                        >
+                          → {email.recommended_folder}
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className={[
@@ -1053,9 +1260,20 @@ export default function MailPage() {
                     <span className="mail-meta-chip">{selectedEmail.from || "unknown sender"}</span>
                     <span className="mail-meta-chip">{selectedEmail.date || "no date"}</span>
                     {selectedEmail.account ? <span className="mail-meta-chip">{selectedEmail.account}</span> : null}
-                    <span className={`rec-badge rec-${recommendationClass(selectedEmail)}`}>
+                    <span
+                      className={`rec-badge rec-${recommendationClass(selectedEmail)}`}
+                      title={selectedEmail.recommendation_reason || undefined}
+                    >
                       {selectedEmail.recommendation?.trim() || "N/A"}
                     </span>
+                    {selectedEmail.importance != null ? (
+                      <span className={`mail-importance mail-importance--${selectedEmail.importance}`} title={`Importance: ${selectedEmail.importance}/5`}>
+                        {selectedEmail.importance}
+                      </span>
+                    ) : null}
+                    {selectedEmail.recommendation_reason ? (
+                      <span className="mail-meta-chip">{selectedEmail.recommendation_reason}</span>
+                    ) : null}
                     {hasAnalysis(selectedEmail) ? (
                       <span className="mail-analysis-done" aria-label="AI processed" title="AI processed">
                         ★
@@ -1209,7 +1427,16 @@ export default function MailPage() {
             <div className="mail-modal-body">
               {state.loading
                 ? <p className="mail-modal-loading">Loading...</p>
-                : <div className="mail-modal-content">{renderLinkedText(state.emailContent)}</div>}
+                : state.emailContentHtml ? (
+                  <iframe
+                    className="mail-html-frame"
+                    srcDoc={state.emailContentHtml}
+                    sandbox="allow-popups allow-popups-to-escape-sandbox"
+                    title="Email content"
+                  />
+                ) : (
+                  <div className="mail-modal-content">{renderLinkedText(state.emailContent)}</div>
+                )}
             </div>
           </aside>
         ) : null}

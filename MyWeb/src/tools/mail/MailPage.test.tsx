@@ -123,16 +123,57 @@ describe("MailPage", () => {
     expect(await screen.findByRole("button", { name: "sync" })).toBeInTheDocument();
   });
 
-  it("shows empty state when no accounts in dev mode", async () => {
-    // DEV_MODE=true: no accounts → page shows empty state (no error).
-    // The setup screen is skipped in dev mode so dev-seed can be used instead.
+  // Bug #2 (dev buttons leaking in prod builds): the fix is to AND
+  // `import.meta.env.DEV` (false in `vite build`) with `VITE_DEV_MODE`.
+  // We do not add a unit test for this: `import.meta.env.DEV` is resolved
+  // at module load by Vite, and stubbing it after import has no effect on
+  // the captured `DEV_MODE` constant. Verifying requires a production
+  // build (`npm run build` + serve) which lives in the integration tier.
+  // The behavior is asserted by code inspection of line ~13 of MailPage.tsx.
+
+  it("shows setup banner when no accounts are configured (bug #4)", async () => {
+    // Bug #4: with no IMAP accounts, the onboarding banner must show even
+    // in DEV_MODE (was previously gated behind !DEV_MODE which left dev
+    // users on a blank list with no prompt).
     vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
     vi.spyOn(mail, "getMailPage").mockRejectedValue(new ApiError(404, "No saved mailbox"));
 
     render(<MemoryRouter><MailPage /></MemoryRouter>);
 
-    // In DEV_MODE with no accounts, 404 is treated as empty state (not an error)
-    expect(await screen.findByText(/No messages loaded/)).toBeInTheDocument();
+    expect(await screen.findByText(/No IMAP accounts are configured/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Set up IMAP/i })).toBeInTheDocument();
+  });
+
+  it("re-analyze button title explains the loading-disabled state (bug #5)", async () => {
+    // Bug #5: previously the title only covered the "no emails loaded"
+    // case. The loading case must also have explanatory copy.
+    vi.spyOn(mail, "getMailPage").mockResolvedValue({
+      content: "Loaded saved mailbox.",
+      emails: SAMPLE_EMAILS,
+      page: 1,
+      total_pages: 1,
+      total_emails: 1,
+    });
+    // fetchMail never resolves so state.loading stays true after we click sync.
+    vi.spyOn(mail, "fetchMail").mockReturnValue(new Promise(() => {}));
+
+    render(<MemoryRouter><MailPage /></MemoryRouter>);
+    const syncButton = await screen.findByRole("button", { name: "sync" });
+    await waitFor(() => expect(syncButton).not.toBeDisabled());
+    fireEvent.click(syncButton);
+
+    const reanalyzeBtn = await screen.findByRole("button", { name: /re-analyze/i });
+    await waitFor(() => {
+      expect(reanalyzeBtn).toBeDisabled();
+      expect(reanalyzeBtn.getAttribute("title") ?? "").toMatch(/wait for the current operation/i);
+    });
+  });
+
+  it("server-search button title distinguishes it from the inline filter (bug #16)", async () => {
+    render(<MemoryRouter><MailPage /></MemoryRouter>);
+    const searchBtn = await screen.findByRole("button", { name: /search all mail/i });
+    expect(searchBtn.getAttribute("title") ?? "").toMatch(/typing filters loaded emails/i);
+    expect(searchBtn.getAttribute("title") ?? "").toMatch(/imap server/i);
   });
 
   it("loads saved mailbox on mount via getMailPage", async () => {
@@ -169,7 +210,7 @@ describe("MailPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/Server report/)).toBeInTheDocument();
     });
-    expect(mail.fetchMail).toHaveBeenCalledWith({ account: "Personal", count: 10, preferences: "", folder: "Inbox" });
+    expect(mail.fetchMail).toHaveBeenCalledWith({ account: "Personal", count: 10, unread_only: false, preferences: "", folder: "Inbox" });
   });
 
   it("shows a visible error when mailbox fetch fails with non-404", async () => {
@@ -195,6 +236,46 @@ describe("MailPage", () => {
 
     expect(await screen.findByText("Deploy completed successfully.")).toBeInTheDocument();
     expect(mail.readMail).toHaveBeenLastCalledWith(1);
+  });
+
+  it("shows an error banner without crashing when readMail returns 404 (bug #6)", async () => {
+    vi.spyOn(mail, "getMailPage").mockResolvedValue({
+      content: "Loaded saved mailbox.",
+      emails: SAMPLE_EMAILS,
+      page: 1,
+      total_pages: 1,
+      total_emails: 1,
+    });
+    vi.spyOn(mail, "readMail").mockRejectedValue(new ApiError(404, "No active mail session"));
+
+    render(<MemoryRouter><MailPage /></MemoryRouter>);
+
+    const openButton = await screen.findByRole("button", { name: "open" });
+    fireEvent.click(openButton);
+
+    // (a) page does not crash — list still rendered
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Mail session not active/i);
+    expect(screen.getByText(/Server report/)).toBeInTheDocument();
+    // (b) no detail pane opened (no spurious selection)
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument();
+  });
+
+  it("surfaces server error message when readMail rejects with non-404 error", async () => {
+    vi.spyOn(mail, "getMailPage").mockResolvedValue({
+      content: "Loaded saved mailbox.",
+      emails: SAMPLE_EMAILS,
+      page: 1,
+      total_pages: 1,
+      total_emails: 1,
+    });
+    vi.spyOn(mail, "readMail").mockRejectedValue(new ApiError(500, "Backend exploded"));
+
+    render(<MemoryRouter><MailPage /></MemoryRouter>);
+
+    const openButton = await screen.findByRole("button", { name: "open" });
+    fireEvent.click(openButton);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Backend exploded");
   });
 
   it("moves an email to archive from the detail panel", async () => {
@@ -278,7 +359,7 @@ describe("MailPage", () => {
     const searchInput = screen.getByPlaceholderText("Search emails...");
     fireEvent.change(searchInput, { target: { value: "report" } });
 
-    const searchBtn = screen.getByRole("button", { name: "search server" });
+    const searchBtn = screen.getByRole("button", { name: /search all mail/i });
     expect(searchBtn).not.toBeDisabled();
     fireEvent.click(searchBtn);
 

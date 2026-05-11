@@ -1,6 +1,5 @@
 # Subdirectories with their own git repos
 devTeam/
-musicBot/
 MyAgent/
 
 # Logs and artifacts
