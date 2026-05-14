@@ -1,0 +1,70 @@
+# Dev/prod stack for the MyProject monorepo.
+# Brings up devTeam (4223), MyAgent (8000), and MyWeb (5173).
+#
+# Assumes ollama is reachable at host's :11434 — the host-gateway alias makes
+# `host.docker.internal` resolve to the host on Linux/Mac/Windows. If you want a
+# containerized ollama instead, see the commented service at the bottom.
+
+services:
+  devteam:
+    build:
+      context: ./devTeam
+    image: myproject/devteam:dev
+    container_name: myproject-devteam
+    ports:
+      - "4223:4223"
+    environment:
+      OLLAMA_HOST: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  myagent:
+    build:
+      context: ./MyAgent
+    image: myproject/myagent:dev
+    container_name: myproject-myagent
+    ports:
+      - "8000:8000"
+    environment:
+      OLLAMA_HOST: http://host.docker.internal:11434
+      HOST: 0.0.0.0
+      PORT: "8000"
+      # MYDEVTEAM_API_KEY: change-me   # uncomment to require auth (see MyAgent/start.sh)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # MyAgent spawns its alpine sandbox via the host docker daemon.
+      # SECURITY: this grants root-equivalent access on the host. Required by design.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # NOTE: sessions.db and src/data.db live inside the container and reset on
+    # rebuild. To persist them, MyAgent needs a configurable DB path; once that
+    # exists, mount a named volume at that path.
+    restart: unless-stopped
+
+  myweb:
+    build:
+      context: ./MyWeb
+    image: myproject/myweb:dev
+    container_name: myproject-myweb
+    ports:
+      - "5173:5173"
+    depends_on:
+      - myagent
+      - devteam
+    restart: unless-stopped
+
+  # Uncomment to run ollama inside compose instead of using the host install.
+  # Models are not shared with a host ollama — they're pulled into the named volume.
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: myproject-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama-data:/root/.ollama
+  #   restart: unless-stopped
+
+# When you uncomment the ollama service above, also uncomment:
+# volumes:
+#   ollama-data:

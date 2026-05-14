@@ -31,6 +31,31 @@ Overridable env vars (from the script):
 
 `MyCli` is not part of `start-servers.sh`. (The Discord bot — formerly `musicBot/` here — was extracted to a standalone sibling repo `../discord-bot/` on 2026-05-11.)
 
+## Start everything with Docker
+
+```bash
+docker compose up --build
+```
+
+`docker-compose.yml` at the repo root builds and runs all three services:
+
+1. `devteam` — built from `devTeam/Dockerfile`, published on `localhost:4223`.
+2. `myagent` — built from `MyAgent/Dockerfile`, published on `localhost:8000`. Mounts `/var/run/docker.sock` so MyAgent can spawn its alpine sandbox container — this grants the container root-equivalent access on the host and is required by design.
+3. `myweb` — built from `MyWeb/Dockerfile` (multi-stage Vite build → nginx), published on `localhost:5173`.
+
+Prerequisites:
+
+- `ollama` running on the host at `:11434`. Containers reach it via `host.docker.internal`, mapped through the `host-gateway` alias in the compose file. To run ollama inside compose instead, uncomment the `ollama` service (and its `volumes:` block) — note its model store is separate from any host ollama.
+- The `MyDevTeam` deploy agent and `MyAgent` sandbox both rely on the host Docker daemon; no extra setup beyond Docker itself.
+
+Caveats:
+
+- `MyAgent`'s `sessions.db` and `src/data.db` live inside the container and reset on rebuild. Persisting them needs a configurable DB path in MyAgent first; once that exists, mount a named volume at that path.
+- `MyWeb` is served as static files by nginx — any `VITE_*` values are baked in at build time. If the frontend reads runtime API URLs from env, add a build arg to `MyWeb/Dockerfile` and a `build.args` block in compose.
+- The `devTeam/` and `MyAgent/` Dockerfiles live inside their own sub-repos (both are git-ignored by the root `MyProject` repo), so they are committed separately from the root `docker-compose.yml`.
+
+Stop with `Ctrl+C`, or `docker compose down` from another terminal.
+
 ## Run tests across subprojects
 
 ### devTeam
