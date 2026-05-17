@@ -12,6 +12,19 @@ COPY tsconfig.json tsconfig.app.json tsconfig.node.json vite.config.ts index.htm
 COPY src ./src
 COPY public ./public
 
+# Build-time env vars baked into the SPA bundle. Must be ARG'd here or Docker
+# silently drops the --build-arg. Empty defaults → relative URLs / no auth header.
+ARG VITE_API_BASE_URL=""
+ARG VITE_API_KEY=""
+ARG VITE_DEVTEAM_API_URL=""
+ARG VITE_DEVTEAM_API_KEY=""
+ARG VITE_DEV_MODE=""
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
+    VITE_API_KEY=$VITE_API_KEY \
+    VITE_DEVTEAM_API_URL=$VITE_DEVTEAM_API_URL \
+    VITE_DEVTEAM_API_KEY=$VITE_DEVTEAM_API_KEY \
+    VITE_DEV_MODE=$VITE_DEV_MODE
+
 RUN npm run build
 
 FROM nginx:alpine AS runtime

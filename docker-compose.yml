@@ -45,6 +45,14 @@ services:
   myweb:
     build:
       context: ./MyWeb
+      # SPA bundle is built with these baked in. The browser runs on the host,
+      # so it reaches the other services via their published host ports.
+      # Override per-deployment (e.g., behind Traefik with real hostnames).
+      args:
+        VITE_API_BASE_URL: "http://localhost:8000"
+        VITE_DEVTEAM_API_URL: "http://localhost:4223"
+        VITE_API_KEY: ""
+        VITE_DEVTEAM_API_KEY: ""
     image: myproject/myweb:dev
     container_name: myproject-myweb
     ports:
