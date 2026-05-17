@@ -1,7 +1,3 @@
-# Subdirectories with their own git repos
-devTeam/
-MyAgent/
-
 # Logs and artifacts
 .logs/
 .playwright-mcp/

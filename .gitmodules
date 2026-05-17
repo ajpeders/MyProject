@@ -1,0 +1,6 @@
+[submodule "devTeam"]
+	path = devTeam
+	url = git@git.thelunadog.com:alex/devTeam.git
+[submodule "MyAgent"]
+	path = MyAgent
+	url = git@git.thelunadog.com:alex/MyAgent.git

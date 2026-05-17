@@ -2,6 +2,20 @@
 
 Operational recipes for the MyProject monorepo. For per-service procedures (auth, IMAP, chat, memory, calendar, admin, agents), read the `HOWTO.md` inside each active subproject.
 
+## Clone the repo (first time)
+
+```bash
+git clone --recurse-submodules git@git.thelunadog.com:alex/MyProject.git
+```
+
+`devTeam/` and `MyAgent/` are git submodules pinned at specific commits via `.gitmodules`. If you already cloned without `--recurse-submodules`:
+
+```bash
+git submodule update --init --recursive
+```
+
+To bump a submodule to its latest upstream commit: `cd` into it, `git pull` (or check out the ref you want), then at the root `git add devTeam` (or `MyAgent`) and commit the pointer bump.
+
 ## Start everything
 
 ```bash
@@ -52,7 +66,7 @@ Caveats:
 
 - `MyAgent`'s `sessions.db` and `src/data.db` live inside the container and reset on rebuild. Persisting them needs a configurable DB path in MyAgent first; once that exists, mount a named volume at that path.
 - `MyWeb` is served as static files by nginx — any `VITE_*` values are baked in at build time. If the frontend reads runtime API URLs from env, add a build arg to `MyWeb/Dockerfile` and a `build.args` block in compose.
-- The `devTeam/` and `MyAgent/` Dockerfiles live inside their own sub-repos (both are git-ignored by the root `MyProject` repo), so they are committed separately from the root `docker-compose.yml`.
+- `devTeam/` and `MyAgent/` are git submodules. The root `MyProject` repo pins a specific commit of each; changes to their `Dockerfile` are committed in the sub-repo first, then the pinned SHA is bumped at the root.
 
 Stop with `Ctrl+C`, or `docker compose down` from another terminal.
 
@@ -92,7 +106,7 @@ Template for adding a sibling service under `MyProject/`:
 
 1. Pick a directory name and create it: `mkdir MyProject/<newproj>`.
 2. Decide whether it gets its own `.git` (matches `devTeam`, `MyAgent` pattern) or is tracked by the top-level `MyProject` repo (matches `MyWeb`, `MyCli`).
-   - Own repo: `cd <newproj> && git init` and push to `git.thelunadog.com/forgo/<newproj>`.
+   - Own repo: `cd <newproj> && git init`, push to `git.thelunadog.com/alex/<newproj>`, then at the root `git submodule add git@git.thelunadog.com:alex/<newproj>.git <newproj>` so the parent pins it.
    - Tracked by parent: just commit the new directory at the top level.
 3. Seed the four required docs in `<newproj>/`: `README.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `HOWTO.md`.
 4. If the service needs to run as part of the dev stack, add a `start_service` block to `start-servers.sh` following the existing devTeam / MyAgent / MyWeb pattern (name, working dir, log file, command).
