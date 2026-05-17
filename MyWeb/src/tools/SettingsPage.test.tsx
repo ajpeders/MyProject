@@ -59,6 +59,7 @@ describe("SettingsPage", () => {
     vi.spyOn(imap, "listImapAccounts").mockResolvedValue([]);
     vi.spyOn(mailConfig, "getMailConfig").mockResolvedValue({
       mail_model: "qwen3:8b",
+      mail_preferences: "",
       available_models: ["qwen3:8b", "llama3.1:8b"],
     });
     vi.spyOn(newsApi, "getSources").mockResolvedValue({ sources: mockSources });

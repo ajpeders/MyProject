@@ -402,12 +402,6 @@ export default function MailPage() {
     return result;
   }, [state.emails, state.activeAccount, state.unreadOnly, state.searchQuery, state.sortMode]);
 
-  const accountNames = useMemo(() => {
-    const names = new Set<string>();
-    for (const e of state.emails) if (e.account) names.add(e.account);
-    return [...names];
-  }, [state.emails]);
-
   const status = useMemo(() => {
     if (state.loading) return state.loadingLabel || "Working...";
     if (state.error) return "Error";
@@ -767,10 +761,6 @@ export default function MailPage() {
       dispatch({ type: "SET_LOADING", loading: false });
       dispatch({ type: "SET_LOADING_LABEL", value: "" });
     }
-  }
-
-  function clearView() {
-    dispatch({ type: "CLEAR_VIEW" });
   }
 
   async function handleSuggestedAction(action: SuggestedAction, emailSubject?: string) {
