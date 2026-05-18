@@ -14,24 +14,33 @@ First tagged stable release of the MyProject monorepo. Headline changes:
 
 See `STABLE_RELEASE_PLAN.md`'s execution log for the per-chunk audit trail.
 
+## Post-v0.1 work (2026-05-11 → 2026-05-18)
+
+Material changes since the v0.1 tag, in addition to per-subproject roadmaps:
+
+- **devTeam** — Dockerfile + `.dockerignore` for containerized runs; `DEVTEAM_API_ADDRESS` env override for bind address (so 0.0.0.0 works under Docker); per-user API key management endpoints (`/api/key/{create,list,delete}`, sha256-hashed) with fail-closed admin gate; `MYDEVTEAM_ALLOWED_ORIGINS` for configurable CORS; runtime dep declaration fix in `pyproject.toml`. Test count: 57 API tests (up from 46 at v0.1).
+- **MyAgent** — Voice-agent path shipped: `services/whisper/*` package with faster-whisper transcription, single-shot voice→tool→reply pipeline, async jobs (`voice_jobs` table), device tokens (`device_tokens` table, `whsk_*` prefix) for iPhone Shortcuts, ntfy.sh push for async results. `read_mail` tool added to the voice toolbox. Dockerfile + `.dockerignore` shipped. DB path made configurable via `MYDEVTEAM_DATA_DIR`.
+- **MyWeb** — TypeScript bumped 5.4 → 5.9 (toolchain fix; older tsc was silently skipping type errors). Dockerfile build-args declared for `VITE_*` env vars so `--build-arg` actually bakes them into the SPA bundle.
+- **Root** — Submodules: `devTeam/` and `MyAgent/` are now tracked as git submodules in `.gitmodules`; `docker-compose.yml` boots the full stack with `docker compose up --build` (containers reach host ollama via `host.docker.internal`).
+
+These will land in v0.2 when tagged; for the per-feature changelog of each subproject, see its own `ROADMAP.md`.
+
 ## Status by subproject
 
 ### devTeam — Active
 
-- Last commit: 2026-05-03 (`feat: wire sibling_context into dev agent LLM prompt`).
-- Owns its own `.git`; FastAPI agentic dev-team daemon with 5 AI agents (orchestrator, dev, review, QA, deploy) via ollama.
+- Tracked as a git submodule (`.gitmodules`); FastAPI agentic dev-team daemon with 5 AI agents (orchestrator, dev, review, QA, deploy) via ollama.
 - Per-subproject roadmap: `devTeam/ROADMAP.md` — cite that file for forward-looking items.
 
 ### MyAgent — Active
 
-- Last commit: 2026-05-03 (58 commits on `main` per audit).
-- Owns its own `.git`; FastAPI gateway with structured tool dispatch over a local LLM.
+- Tracked as a git submodule (`.gitmodules`); FastAPI gateway with structured tool dispatch over a local LLM. Voice-agent path live (Whisper transcription, device tokens, ntfy push).
 - Per-subproject roadmap: `MyAgent/ROADMAP.md`.
 
 ### MyWeb — Active
 
 - Has uncommitted work in progress at the time of this writing (see top-level `git status`).
-- React 19 + TS ~5.4.0 + Vite 8 frontend for the whole tool suite.
+- React 19 + TS ~5.9 + Vite 8 frontend for the whole tool suite.
 - Mail-page hardening tracked in `MyWeb/docs/MAIL_ROADMAP.md` and `MyWeb/docs/MAIL_BUGS.md`; news-page vision noted in user memory.
 - Per-subproject roadmap: `MyWeb/ROADMAP.md` (added 2026-05-10 as part of the v0.1 doc split).
 
@@ -42,9 +51,8 @@ See `STABLE_RELEASE_PLAN.md`'s execution log for the per-chunk audit trail.
 
 ## Cross-cutting work
 
-- **Stable release**: see `STABLE_RELEASE_PLAN.md` for the active release-stabilization plan (release blockers, doc truth-up, missing-doc creation, mail bug sweep, release tag).
-- **Naming-collision rename**: `MyAgent/README.md` is mistitled `# MyDevTeam` and should be renamed to match the actual service. Flagged in `ARCHITECTURE.md` as a follow-up.
-- **Bootstrap docs**: nested `.git` repos in `devTeam/` and `MyAgent/` mean a fresh clone of `MyProject` does not pull subproject code. No bootstrap/clone-all script exists today — a future cleanup item.
+- **Stable release**: `STABLE_RELEASE_PLAN.md` is the historical v0.1 execution log; v0.2 will be cut once the post-release work above is verified end-to-end.
+- **Submodule bootstrap**: `git clone --recurse-submodules` (or `git submodule update --init --recursive` after a plain clone) pulls `devTeam/` and `MyAgent/`. See `HOWTO.md`.
 
 ## Out of scope here
 

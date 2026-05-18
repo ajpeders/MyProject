@@ -2,7 +2,7 @@
 
 Tracking the state and planned work for the mail tool (frontend + backend).
 
-## Current State (2026-04-28)
+## Current State (verified 2026-05-18; no shipped functionality changes since 2026-04-28)
 
 Working mail client with AI-powered triage: sync from IMAP, view/move/delete emails, AI recommendations with user feedback loop.
 

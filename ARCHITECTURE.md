@@ -51,11 +51,7 @@ Verified:
 
 Note the casing difference: MyAgent uses `X-API-Key` (uppercase API); devTeam uses `X-Api-Key`. Both spellings are present in the code today.
 
-## Naming collision
-
-Both `devTeam/README.md` and `MyAgent/README.md` are titled `# MyDevTeam`. Based on its actual contents (agentic dev-team daemon with 5 AI agents), `devTeam/` is the real "MyDevTeam"; `MyAgent/README.md` is mistitled. Flagged as a follow-up rename for the user — do not auto-rename.
-
-## Repo layout and nested `.git` notes
+## Repo layout and submodules
 
 ```
 MyProject/                       # this repo
@@ -68,13 +64,30 @@ MyProject/                       # this repo
 └── .logs/                       # runtime logs from start-servers.sh
 ```
 
-`devTeam` and `MyAgent` each carry their own `.git` directory; they are independent Forgejo repos checked out side-by-side rather than git submodules. Cloning `MyProject` alone will not pull them — clone each subproject separately when bootstrapping a fresh machine. No bootstrap/clone-all script exists today.
+`devTeam` and `MyAgent` are tracked as git submodules (see `.gitmodules`) pinned at specific commits. Clone with `git clone --recurse-submodules` to fetch them, or run `git submodule update --init --recursive` after a plain clone. To advance a pinned commit: `cd` into the submodule, check out the target ref, then at the root `git add <submodule>` and commit the pointer bump. See `HOWTO.md` for the full workflow.
 
 The Discord bot (formerly `musicBot/` inside this monorepo) was extracted on 2026-05-11 to its own standalone repo at the sibling path `../discord-bot/` — see `discord-bot/README.md` there.
 
 ## Subproject summaries
 
-- **devTeam** — FastAPI HTTP daemon with SQLAlchemy + SQLite (WAL), `AgentManager`, optional NATS sync. Agents: Orchestrator, Dev, PRManager (review), QA, Deploy. LLM calls via `litellm` against ollama or cloud providers. See `devTeam/ARCHITECTURE.md`.
-- **MyAgent** — FastAPI gateway exposing structured tool dispatch over a local LLM (default `qwen3:8b` via ollama). Persists sessions in `MyAgent/sessions.db`. See `MyAgent/ARCHITECTURE.md`.
+- **devTeam** — FastAPI HTTP daemon with SQLAlchemy + SQLite (WAL), `AgentManager`, optional NATS sync. Agents: Orchestrator, Dev, PRManager (review), QA, Deploy. LLM calls via `litellm` against ollama or cloud providers. Ships with a Dockerfile for containerized runs. Auth surface includes per-user API key management (`/api/key/*` endpoints, sha256-hashed) and a fail-closed admin gate. See `devTeam/ARCHITECTURE.md`.
+- **MyAgent** — FastAPI gateway exposing structured tool dispatch over a local LLM (default `qwen3:8b` via ollama). Persists sessions in `MyAgent/sessions.db` and structured data in `src/core/data.db` (path overridable via `MYDEVTEAM_DATA_DIR`). Includes a voice-agent path: `/api/whisper/transcribe`, `/api/whisper/agent`, `/api/whisper/agent/async`, device tokens (`whsk_*`) for iPhone Shortcuts, and ntfy.sh push for async results. See `MyAgent/ARCHITECTURE.md`.
 - **MyWeb** — Browser-only SPA shell exposing mail, news, search, chat, memory, calendar, admin, settings, devteam, whisper, and agent pages under one authenticated layout. See `MyWeb/ARCHITECTURE.md`.
 - **MyCli** — Empty directory with no tracked files.
+
+## Voice-input path
+
+```
+iPhone Shortcut ──► MyAgent /api/whisper/agent[/async]   (X-Device-Token: whsk_*)
+                       │
+                       ├── transcribe via faster-whisper
+                       ├── LLM picks one tool (save_note, recall_notes,
+                       │     create_event, list_events, read_mail, search_web, answer)
+                       └── async: result pushed via ntfy.sh; sync: result in response
+```
+
+Async jobs are recorded in `voice_jobs`; transcripts in `whisper_transcripts`; long-lived device tokens in `device_tokens`. All three tables live in MyAgent's SQLite DB.
+
+## Containerized stack
+
+`docker-compose.yml` at the repo root builds and runs all three services (devTeam, MyAgent, MyWeb) with the same port mappings as the script-based flow. Each subproject ships its own `Dockerfile`. Containers reach the host's ollama at `host.docker.internal:11434` via the `host-gateway` extra_host alias. MyAgent mounts `/var/run/docker.sock` to spawn its alpine sandbox container — required by design, grants root-equivalent host access. See `HOWTO.md` for prereqs and caveats.

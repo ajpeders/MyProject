@@ -6,10 +6,12 @@ Monorepo of personal-productivity services and the web UI that fronts them. Thre
 
 | Name        | Description                                                            | Status               | Port  |
 | ----------- | ---------------------------------------------------------------------- | -------------------- | ----- |
-| `devTeam/`  | Agentic dev-team daemon (FastAPI, 5 AI agents via ollama)              | Active (2026-05-03)  | 4223  |
-| `MyAgent/`  | Personal local-LLM agent gateway (FastAPI, structured tool dispatch)   | Active (2026-05-03)  | 8000  |
-| `MyWeb/`    | React 19 + TS ~5.4.0 + Vite 8 tool-suite frontend                      | Active (uncommitted) | 5173  |
+| `devTeam/`  | Agentic dev-team daemon (FastAPI, 5 AI agents via ollama)              | Active (submodule)   | 4223  |
+| `MyAgent/`  | Personal LLM agent gateway (FastAPI, tool dispatch + voice/Whisper)    | Active (submodule)   | 8000  |
+| `MyWeb/`    | React 19 + TS ~5.9 + Vite 8 tool-suite frontend (mail, news, whisper…) | Active (WIP)         | 5173  |
 | `MyCli/`    | Empty stub, no tracked files                                           | Stub                 | n/a   |
+
+`devTeam` and `MyAgent` are git submodules pinned at specific commits; the parent repo tracks the pointer SHA. `MyWeb` and `MyCli` are tracked directly in the parent repo. MyWeb has active uncommitted WIP — see `MyWeb/ROADMAP.md` for current threads.
 
 The Discord music bot was extracted from this monorepo on 2026-05-11 — it now lives as a standalone repo at `../discord-bot/` (Forgejo: `alex/discord-bot`, GitHub: `ajpeders/discord-bot`).
 
@@ -32,4 +34,4 @@ Prerequisites (per `start-servers.sh` and subproject docs):
 
 ## Documentation
 
-See `ARCHITECTURE.md`, `ROADMAP.md`, and `HOWTO.md` in this directory. Stable-release work is tracked in `STABLE_RELEASE_PLAN.md`. Each active subproject also keeps its own README/ARCHITECTURE/ROADMAP/HOWTO.
+See `ARCHITECTURE.md`, `ROADMAP.md`, and `HOWTO.md` in this directory. The v0.1 release plan is preserved in `STABLE_RELEASE_PLAN.md` (historical execution log — not a live changelog). Each active subproject also keeps its own README/ARCHITECTURE/ROADMAP/HOWTO.

@@ -3,7 +3,7 @@
 Migrated from `~/.claude/projects/-home-alex-projects-MyProject/memory/project_mail_bug_fixes.md` on 2026-05-10.
 Source memory pointer should be updated to point here.
 
-Status reconciliation done 2026-05-10 against `src/tools/mail/MailPage.tsx`.
+Status reconciliation done 2026-05-10 against `src/tools/mail/MailPage.tsx`; re-verified 2026-05-18 (no new regressions, no bugs flipped state).
 
 ## Open
 
