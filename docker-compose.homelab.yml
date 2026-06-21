@@ -1,0 +1,116 @@
+# Homelab production compose for MyProject.
+# Separate from docker-compose.yml (the dev/standalone stack) so the two
+# don't shadow each other. The homelab top-level services/docker-compose.yml
+# includes this file via ../apps/MyProject/docker-compose.homelab.yml.
+
+services:
+  myagent:
+    container_name: myagent
+    build:
+      context: ./MyAgent
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    # Full-mailbox sync (fetch_all) holds every email in memory at once; a 1g
+    # cap OOM-killed mid-fetch on Gmail-sized inboxes. Bump until we add chunking.
+    mem_limit: 6g
+    environment:
+      HOST: 0.0.0.0
+      PORT: "8000"
+      JWT_SECRET: ${MYAGENT_JWT_SECRET}
+      MYDEVTEAM_API_KEY: ${MYAGENT_API_KEY}
+      ALLOWED_ORIGINS: https://${MYPROJECT_DOMAIN}
+      LLM_PROVIDER: ollama
+      LLM_MODEL: ${LLM_MODEL:-qwen3:8b}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://192.168.0.40:11434}
+      MYDEVTEAM_DATA_DIR: /data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../../state/myproject/myagent:/data
+      # MyAgent spawns its alpine sandbox via the host docker daemon.
+      # SECURITY: root-equivalent host access — by design.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - web
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+      - traefik.http.services.myagent.loadbalancer.server.port=8000
+      - traefik.http.routers.myproject-api.rule=Host(`${MYPROJECT_DOMAIN}`) && PathPrefix(`/api`)
+      - traefik.http.routers.myproject-api.entrypoints=websecure
+      - traefik.http.routers.myproject-api.tls=true
+      - traefik.http.routers.myproject-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.myproject-api.middlewares=local-only@file
+      - traefik.http.routers.myproject-api.service=myagent
+      - traefik.http.routers.myproject-api.priority=20
+
+  devteam:
+    container_name: devteam
+    # Paused 2026-06-21: project not actively worked on. Excluded from the default
+    # `docker compose up` via this profile. Re-enable by removing the profiles key
+    # and restoring the `- devteam` entry under myweb's depends_on. State at
+    # state/myproject/devteam is preserved.
+    profiles: ["disabled"]
+    build:
+      context: ./devTeam
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    mem_limit: 1g
+    environment:
+      DEVTEAM_API_ADDRESS: 0.0.0.0:4223
+      MYDEVTEAM_API_KEY: ${DEVTEAM_ADMIN_API_KEY}
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://192.168.0.40:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../../state/myproject/devteam:/app/data
+    networks:
+      - web
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+      - traefik.http.services.devteam.loadbalancer.server.port=4223
+      - traefik.http.routers.myproject-devteam.rule=Host(`${MYPROJECT_DOMAIN}`) && PathPrefix(`/devteam-api`)
+      - traefik.http.routers.myproject-devteam.entrypoints=websecure
+      - traefik.http.routers.myproject-devteam.tls=true
+      - traefik.http.routers.myproject-devteam.tls.certresolver=letsencrypt
+      - traefik.http.routers.myproject-devteam.middlewares=local-only@file,myproject-devteam-strip@docker
+      - traefik.http.routers.myproject-devteam.service=devteam
+      - traefik.http.routers.myproject-devteam.priority=20
+      - traefik.http.middlewares.myproject-devteam-strip.stripprefix.prefixes=/devteam-api
+
+  myweb:
+    container_name: myweb
+    build:
+      context: ./MyWeb
+      dockerfile: Dockerfile
+      args:
+        # Client paths already include /api/... and /devteam-api/...; leaving
+        # these empty makes the SPA call them as same-origin relative URLs,
+        # which Traefik then routes to myagent / devteam by PathPrefix. A
+        # /api prefix here causes /api/api/... double-prefix → 404.
+        VITE_API_BASE_URL: ""
+        VITE_DEVTEAM_API_URL: ""
+        VITE_API_KEY: ${MYAGENT_API_KEY}
+    restart: unless-stopped
+    mem_limit: 128m
+    depends_on:
+      - myagent
+    networks:
+      - web
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+      - traefik.http.services.myweb.loadbalancer.server.port=5173
+      - traefik.http.routers.myproject.rule=Host(`${MYPROJECT_DOMAIN}`)
+      - traefik.http.routers.myproject.entrypoints=websecure
+      - traefik.http.routers.myproject.tls=true
+      - traefik.http.routers.myproject.tls.certresolver=letsencrypt
+      - traefik.http.routers.myproject.middlewares=local-only@file
+      - traefik.http.routers.myproject.service=myweb
+      - traefik.http.routers.myproject.priority=1
+
+networks:
+  web:
+    external: true
+    name: web
