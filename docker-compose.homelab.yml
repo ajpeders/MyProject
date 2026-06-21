@@ -6,6 +6,10 @@
 services:
   myagent:
     container_name: myagent
+    # Paused 2026-06-21: myproject taken dormant. Excluded from the default
+    # `docker compose up` via this profile. Re-enable by removing the profiles
+    # key. State at state/myproject/myagent is preserved.
+    profiles: ["disabled"]
     build:
       context: ./MyAgent
       dockerfile: Dockerfile
@@ -81,6 +85,9 @@ services:
 
   myweb:
     container_name: myweb
+    # Paused 2026-06-21: myproject dormant (myweb is just myagent's frontend).
+    # Re-enable by removing the profiles key.
+    profiles: ["disabled"]
     build:
       context: ./MyWeb
       dockerfile: Dockerfile
