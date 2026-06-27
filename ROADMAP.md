@@ -36,7 +36,7 @@ These will land in v0.2 when tagged; for the per-feature changelog of each subpr
 
 - Tracked as a git submodule (`.gitmodules`); FastAPI gateway with structured tool dispatch over a local LLM. Voice-agent path live (Whisper transcription, device tokens, ntfy push).
 - Next major thread: **voice-to-note (organize / summarize / integrate)** — promote raw voice transcripts into a structured PKM layer on top of the existing Whisper toolbox. Details in `MyAgent/ROADMAP.md` → Planned.
-- Planned thread: **BudgetAgent** — wire the headless `budget` service (homelab `apps/budget`) in as a tool surface so MyAgent is the AI control plane over budget data (query / categorize / analyze); no AI in the budget app itself. Details in `MyAgent/ROADMAP.md` → Planned.
+- In-progress thread: **BudgetAgent** — first MyAgent tool surface shipped 2026-06-27 for budget summary, transaction lookup, account listing, and guarded categorization over the headless `budget` service (homelab `apps/budget`); auto-categorize-on-import remains planned. Details in `MyAgent/ROADMAP.md` → Planned.
 - Per-subproject roadmap: `MyAgent/ROADMAP.md`.
 
 ### MyWeb — Active
