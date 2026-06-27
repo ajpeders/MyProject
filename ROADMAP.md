@@ -35,6 +35,8 @@ These will land in v0.2 when tagged; for the per-feature changelog of each subpr
 ### MyAgent — Active
 
 - Tracked as a git submodule (`.gitmodules`); FastAPI gateway with structured tool dispatch over a local LLM. Voice-agent path live (Whisper transcription, device tokens, ntfy push).
+- Next major thread: **voice-to-note (organize / summarize / integrate)** — promote raw voice transcripts into a structured PKM layer on top of the existing Whisper toolbox. Details in `MyAgent/ROADMAP.md` → Planned.
+- Planned thread: **BudgetAgent** — wire the headless `budget` service (homelab `apps/budget`) in as a tool surface so MyAgent is the AI control plane over budget data (query / categorize / analyze); no AI in the budget app itself. Details in `MyAgent/ROADMAP.md` → Planned.
 - Per-subproject roadmap: `MyAgent/ROADMAP.md`.
 
 ### MyWeb — Active
@@ -43,6 +45,14 @@ These will land in v0.2 when tagged; for the per-feature changelog of each subpr
 - React 19 + TS ~5.9 + Vite 8 frontend for the whole tool suite.
 - Mail-page hardening tracked in `MyWeb/docs/MAIL_ROADMAP.md` and `MyWeb/docs/MAIL_BUGS.md`; news-page vision noted in user memory.
 - Per-subproject roadmap: `MyWeb/ROADMAP.md` (added 2026-05-10 as part of the v0.1 doc split).
+
+### MyMobile — Active (v0.1 scaffold)
+
+- React Native + Expo SDK 53 + TypeScript phone app. Talks to the same `/api/*` gateway as MyWeb over HTTPS.
+- v1 scope (shipped at scaffold time): login/register, mail list, per-row Apply, bulk Apply-all. Mirrors MyWeb's mail-triage UX so "delete = Trash, never expunge" is enforced identically on both clients.
+- No IMAP setup or AI-config management on mobile yet — those stay on the web for now; mobile is read+triage.
+- Distribution: Expo Go for dev/test, EAS Build for store/sideload later.
+- See `MyMobile/README.md` for run instructions and follow-up ideas (push notifications, voice capture, on-device IMAP setup).
 
 ### MyCli — Stub
 
