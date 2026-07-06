@@ -3,7 +3,6 @@ import Layout from "./components/Layout";
 import HomePage from "./tools/HomePage";
 import MailPage from "./tools/mail/MailPage";
 import SearchPage from "./tools/search/SearchPage";
-import CarsPage from "./tools/cars/CarsPage";
 import ChatPage from "./tools/chat/ChatPage";
 import MemoryPage from "./tools/memory/MemoryPage";
 import MyAgentPage from "./tools/myagent/MyAgentPage";
@@ -40,7 +39,6 @@ export default function App() {
           <Route path="/mail" element={<MailPage />} />
           <Route path="/news" element={<NewsPage />} />
           <Route path="/search" element={<SearchPage />} />
-          <Route path="/cars" element={<CarsPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/memory" element={<MemoryPage />} />
           <Route path="/myagent" element={<MyAgentPage />} />
