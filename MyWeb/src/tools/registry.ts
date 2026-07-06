@@ -21,6 +21,11 @@ export const tools: ToolEntry[] = [
     description: "Ask questions, review web results, and browse page summaries",
   },
   {
+    name: "Cars",
+    path: "/cars",
+    description: "Search car listings across many marketplaces at once",
+  },
+  {
     name: "Chat",
     path: "/chat",
     description: "Ask web-backed questions and get inline answers",
