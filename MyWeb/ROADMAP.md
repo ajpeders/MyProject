@@ -1,11 +1,16 @@
 # Roadmap
 
+## Post-v0.1 (2026-05-11 → 2026-05-18)
+
+- **TS toolchain bump** (commit `c0f5df1`, 2026-05-16): `typescript` from `~5.4.0` → `^5.9.0`. The old `tsc` was silently skipping type errors that newer `tsconfig.app.json` semantics actually catch — fixing this surfaced and resolved a batch of latent type errors. Removed unused `accountNames` useMemo and `clearView` function in `src/tools/mail/MailPage.tsx` along the way. Vitest 190/190 passing.
+- **Docker build-args wired** (commit `1c22dc0`, 2026-05-17): `VITE_API_BASE_URL`, `VITE_DEVTEAM_API_URL`, `VITE_API_KEY`, `VITE_DEVTEAM_API_KEY`, and `VITE_DEV_MODE` are now declared as `ARG`s in `Dockerfile`, so `--build-arg` actually takes effect in the SPA bundle (previously these were `ENV`-only and silently ignored at build time). See `HOWTO.md` → "Docker Production Build".
+
 ## Released — 2026-05-11 (MyProject v0.1)
 
 - Mail page critical crash fixed (bug #6): `readMail()` 404 no longer crashes via `.length`-on-undefined; defensive shape-guards + status-aware error banner via existing `SET_ERROR` reducer.
 - Mail UX bugs fixed: #2 dev-button gate tightened with `import.meta.env.DEV` (production builds always strip dev buttons even if `VITE_DEV_MODE=true` leaks); #4 onboarding banner triggers proactively in dev mode; #5 re-analyze button tooltip covers the loading-disabled state; #16 server-search button renamed and tooltip distinguishes it from the inline filter.
 - Docs split: README carved into the standard 4-doc set (README + ARCHITECTURE + ROADMAP + HOWTO); `docs/MAIL_BUGS.md` migrated from user memory and reconciled against current code (10/16 already-fixed, 5 fixed this release, 1 deferred upstream).
-- +5 new tests; full suite 186/187 (1 pre-existing baseline failure in `src/api/client.test.ts > apiFetch`).
+- +5 new tests; full suite 186/187 at v0.1 (1 pre-existing baseline failure in `src/api/client.test.ts > apiFetch` — now passing after the TS bump, 190/190).
 
 ## Status — 2026-05-10
 

@@ -100,7 +100,7 @@ For `apiFetch` itself, mock at the module boundary
 (`vi.spyOn(client, "apiFetch")`), but prefer mocking the higher-level
 `src/api/*` helper so tests stay decoupled from header logic.
 
-## Run a Production Build
+## Build the SPA Bundle
 
 ```bash
 npm run build
@@ -108,3 +108,31 @@ npm run build
 
 Runs `tsc -b` then `vite build`. Output is `dist/`. Use `npm run preview` to
 serve the build locally.
+
+## Docker Production Build
+
+`Dockerfile` is a multi-stage build (Vite build → nginx serve). The `VITE_*`
+values must be passed as `--build-arg` because they're baked into the SPA
+bundle at build time — `.env` only applies at `npm run dev`/`build` time on a
+developer machine, not inside the container build:
+
+```bash
+docker build \
+  --build-arg VITE_API_BASE_URL=https://myagent.example.com \
+  --build-arg VITE_DEVTEAM_API_URL=https://devteam.example.com \
+  --build-arg VITE_API_KEY=$MYAGENT_KEY \
+  --build-arg VITE_DEVTEAM_API_KEY=$DEVTEAM_KEY \
+  -t myweb:latest .
+```
+
+Build args (declared in `Dockerfile`):
+
+| Arg | Default | Purpose |
+|-----|---------|---------|
+| `VITE_API_BASE_URL` | `""` (relative `/api`) | MyAgent base URL |
+| `VITE_DEVTEAM_API_URL` | `""` | devTeam base URL |
+| `VITE_API_KEY` | `""` | `X-API-Key` for MyAgent |
+| `VITE_DEVTEAM_API_KEY` | `""` | `X-Api-Key` for devTeam |
+| `VITE_DEV_MODE` | `""` | Set to `"true"` only in dev — gates seed/fetch-only/re-analyze buttons together with `import.meta.env.DEV`. Leave unset/empty in production. |
+
+The parent monorepo's `docker-compose.yml` passes these via `build.args`.

@@ -34,6 +34,10 @@ vi.mock("../../api/mailConfig", () => ({
   updateMailConfig: vi.fn(),
 }));
 
+vi.mock("../../api/calendar", () => ({
+  createEvent: vi.fn(),
+}));
+
 // VITE_DEV_MODE=true in .env, so DEV_MODE is true in all tests.
 // This means: no fetch fallback on 404, dev-seed on 400 with no accounts.
 
@@ -105,8 +109,8 @@ describe("MailPage", () => {
     });
     vi.spyOn(mail, "moveMail").mockResolvedValue({ message: "Moved 1 email.", folder: "Archive" });
     vi.spyOn(mail, "submitMailFeedback").mockResolvedValue({ status: "ok" });
-    vi.spyOn(mailConfig, "getMailConfig").mockResolvedValue({ mail_model: "qwen3:8b", mail_preferences: "", available_models: ["qwen3:8b"] });
-    vi.spyOn(mailConfig, "updateMailConfig").mockResolvedValue({ mail_model: "qwen3:8b", mail_preferences: "", available_models: ["qwen3:8b"] });
+    vi.spyOn(mailConfig, "getMailConfig").mockResolvedValue({ mail_model: "qwen3:8b", mail_preferences: "", available_models: ["qwen3:8b"], ai_config_id: null });
+    vi.spyOn(mailConfig, "updateMailConfig").mockResolvedValue({ mail_model: "qwen3:8b", mail_preferences: "", available_models: ["qwen3:8b"], ai_config_id: null });
     vi.spyOn(localStorage, "getItem").mockImplementation((key) => (
       key === "myagent.session_id" ? "test-session" : null
     ));
@@ -210,7 +214,7 @@ describe("MailPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/Server report/)).toBeInTheDocument();
     });
-    expect(mail.fetchMail).toHaveBeenCalledWith({ account: "Personal", count: 10, unread_only: false, preferences: "", folder: "Inbox" });
+    expect(mail.fetchMail).toHaveBeenCalledWith({ account: "Personal", count: 100, fetch_all: false, incremental: true, unread_only: false, preferences: "", folder: "Inbox" });
   });
 
   it("shows a visible error when mailbox fetch fails with non-404", async () => {
@@ -360,7 +364,7 @@ describe("MailPage", () => {
     fireEvent.change(searchInput, { target: { value: "report" } });
 
     const searchBtn = screen.getByRole("button", { name: /search all mail/i });
-    expect(searchBtn).not.toBeDisabled();
+    await waitFor(() => expect(searchBtn).not.toBeDisabled());
     fireEvent.click(searchBtn);
 
     await waitFor(() => {
@@ -370,5 +374,142 @@ describe("MailPage", () => {
         folder: "Inbox",
       });
     });
+  });
+
+  // ── Mail cleanup flow ─────────────────────────────────────────
+  // The user's invariant: "delete" must NEVER expunge — it always routes
+  // to the Trash folder via moveMail. These tests lock that in.
+
+  function withRecommendation(rec: string, folder?: string) {
+    return {
+      ...SAMPLE_EMAILS[0],
+      recommendation: rec,
+      recommended_folder: folder,
+    };
+  }
+
+  it("apply button on a 'delete' recommendation routes to Trash, never expunges", async () => {
+    vi.spyOn(mail, "getMailPage").mockResolvedValue({
+      content: "ok",
+      emails: [withRecommendation("delete")],
+      page: 1,
+      total_pages: 1,
+      total_emails: 1,
+    });
+
+    render(<MemoryRouter><MailPage /></MemoryRouter>);
+    const applyBtn = await screen.findByRole("button", { name: /^✓ apply$/ });
+    fireEvent.click(applyBtn);
+
+    await waitFor(() => {
+      expect(mail.moveMail).toHaveBeenCalledWith([1], "Trash");
+    });
+    // No bulk-delete or expunge API exists on the mail client surface; this
+    // assertion is here so a future maintainer who adds one will surface a
+    // failing test if they accidentally wire it into the delete path.
+    const moveCalls = vi.mocked(mail.moveMail).mock.calls;
+    expect(moveCalls.every((c) => c[1] === "Trash" || c[1] === "Archive")).toBe(true);
+  });
+
+  it("apply button on an 'archive' recommendation uses the recommended folder", async () => {
+    vi.spyOn(mail, "getMailPage").mockResolvedValue({
+      content: "ok",
+      emails: [withRecommendation("archive", "Archive/2026")],
+      page: 1,
+      total_pages: 1,
+      total_emails: 1,
+    });
+
+    render(<MemoryRouter><MailPage /></MemoryRouter>);
+    const applyBtn = await screen.findByRole("button", { name: /^✓ apply$/ });
+    fireEvent.click(applyBtn);
+
+    await waitFor(() => {
+      expect(mail.moveMail).toHaveBeenCalledWith([1], "Archive/2026");
+    });
+  });
+
+  it("apply-all button is disabled when no actionable recommendations exist", async () => {
+    vi.spyOn(mail, "getMailPage").mockResolvedValue({
+      content: "ok",
+      emails: [withRecommendation("reply")],
+      page: 1,
+      total_pages: 1,
+      total_emails: 1,
+    });
+
+    render(<MemoryRouter><MailPage /></MemoryRouter>);
+    const applyAll = await screen.findByRole("button", { name: /^✓ apply all$/ });
+    expect(applyAll).toBeDisabled();
+  });
+
+  it("+ all calendar button creates one event per add_to_calendar suggestion", async () => {
+    const mod = await import("../../api/calendar");
+    const createEventSpy = vi.spyOn(mod, "createEvent").mockResolvedValue({
+      id: "evt-1", title: "x", date: "2026-06-09",
+    });
+    vi.spyOn(mail, "getMailPage").mockResolvedValue({
+      content: "ok",
+      emails: [
+        {
+          ...SAMPLE_EMAILS[0],
+          index: 1,
+          suggested_actions: [
+            { type: "add_to_calendar", title: "Lunch w/ Alex", date: "2026-06-10" },
+            { type: "add_to_calendar", title: "Demo prep", date: "2026-06-11", time: "14:00" },
+          ],
+        },
+        {
+          ...SAMPLE_EMAILS[0],
+          index: 2,
+          suggested_actions: [
+            { type: "add_to_calendar", title: "1:1", date: "2026-06-12" },
+          ],
+        },
+      ],
+      page: 1,
+      total_pages: 1,
+      total_emails: 2,
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<MemoryRouter><MailPage /></MemoryRouter>);
+    const allCal = await screen.findByRole("button", { name: /^\+ all calendar$/ });
+    await waitFor(() => expect(allCal).not.toBeDisabled());
+    fireEvent.click(allCal);
+
+    await waitFor(() => {
+      expect(createEventSpy).toHaveBeenCalledTimes(3);
+    });
+    expect(createEventSpy).toHaveBeenCalledWith({ title: "Lunch w/ Alex", date: "2026-06-10", time: undefined });
+    expect(createEventSpy).toHaveBeenCalledWith({ title: "Demo prep", date: "2026-06-11", time: "14:00" });
+    expect(createEventSpy).toHaveBeenCalledWith({ title: "1:1", date: "2026-06-12", time: undefined });
+  });
+
+  it("apply-all runs delete→Trash + archive→folder for actionable rows when confirmed", async () => {
+    vi.spyOn(mail, "getMailPage").mockResolvedValue({
+      content: "ok",
+      emails: [
+        { ...withRecommendation("delete"), index: 1 },
+        { ...withRecommendation("archive", "Archive"), index: 2 },
+        { ...withRecommendation("reply"), index: 3 },
+      ],
+      page: 1,
+      total_pages: 1,
+      total_emails: 3,
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<MemoryRouter><MailPage /></MemoryRouter>);
+    const applyAll = await screen.findByRole("button", { name: /^✓ apply all$/ });
+    await waitFor(() => expect(applyAll).not.toBeDisabled());
+    fireEvent.click(applyAll);
+
+    await waitFor(() => {
+      expect(mail.moveMail).toHaveBeenCalledWith([1], "Trash");
+      expect(mail.moveMail).toHaveBeenCalledWith([2], "Archive");
+    });
+    // The 'reply' row is left alone — bulk mode skips human-decision actions.
+    expect(mail.moveMail).not.toHaveBeenCalledWith([3], expect.anything());
   });
 });

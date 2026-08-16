@@ -5,9 +5,8 @@ import Layout from "./Layout";
 
 vi.mock("../api/auth", () => ({
   isAdmin: vi.fn(() => false),
+  logout: vi.fn(),
 }));
-
-import { isAdmin } from "../api/auth";
 
 function TestLayout() {
   return (
@@ -20,21 +19,19 @@ function TestLayout() {
 }
 
 describe("Layout", () => {
-  it("renders sidebar with nav links", () => {
-    vi.mocked(isAdmin).mockReturnValue(true);
+  it("renders sidebar with Home, Mail, Budget, and Settings links", () => {
     render(<MemoryRouter><TestLayout /></MemoryRouter>);
     expect(screen.getByRole("link", { name: "Home" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Mail" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "DevTeam" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Admin" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Budget" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Settings" })).toBeInTheDocument();
   });
 
-  it("hides Admin link for non-admin users", () => {
-    vi.mocked(isAdmin).mockReturnValue(false);
+  it("does not render removed tool links", () => {
     render(<MemoryRouter><TestLayout /></MemoryRouter>);
-    expect(screen.queryByRole("link", { name: "Admin" })).toBeNull();
-    expect(screen.getByRole("link", { name: "Mail" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Chat" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "DevTeam" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "News" })).toBeNull();
   });
 
   it("renders MyAgent heading", () => {

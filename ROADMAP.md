@@ -61,26 +61,46 @@ First tagged stable release of the MyProject monorepo. Headline changes:
 
 See `STABLE_RELEASE_PLAN.md`'s execution log for the per-chunk audit trail.
 
+## Post-v0.1 work (2026-05-11 → 2026-05-18)
+
+Material changes since the v0.1 tag, in addition to per-subproject roadmaps:
+
+- **devTeam** — Dockerfile + `.dockerignore` for containerized runs; `DEVTEAM_API_ADDRESS` env override for bind address (so 0.0.0.0 works under Docker); per-user API key management endpoints (`/api/key/{create,list,delete}`, sha256-hashed) with fail-closed admin gate; `MYDEVTEAM_ALLOWED_ORIGINS` for configurable CORS; runtime dep declaration fix in `pyproject.toml`. Test count: 57 API tests (up from 46 at v0.1).
+- **MyAgent** — Voice-agent path shipped: `services/whisper/*` package with faster-whisper transcription, single-shot voice→tool→reply pipeline, async jobs (`voice_jobs` table), device tokens (`device_tokens` table, `whsk_*` prefix) for iPhone Shortcuts, ntfy.sh push for async results. `read_mail` tool added to the voice toolbox. Dockerfile + `.dockerignore` shipped. DB path made configurable via `MYDEVTEAM_DATA_DIR`.
+- **MyWeb** — TypeScript bumped 5.4 → 5.9 (toolchain fix; older tsc was silently skipping type errors). Dockerfile build-args declared for `VITE_*` env vars so `--build-arg` actually bakes them into the SPA bundle.
+- **Root** — Submodules: `devTeam/` and `MyAgent/` are now tracked as git submodules in `.gitmodules`; `docker-compose.yml` boots the full stack with `docker compose up --build` (containers reach host ollama via `host.docker.internal`).
+
+These will land in v0.2 when tagged; for the per-feature changelog of each subproject, see its own `ROADMAP.md`.
+
 ## Status by subproject
 
 ### devTeam — Active
 
-- Last commit: 2026-05-17 (`feat(auth): API key management with fail-closed admin gate + configurable CORS`), plus the uncommitted container fixes from the 2026-08-16 pass above.
-- Git submodule; FastAPI agentic dev-team daemon with 5 AI agents (orchestrator, dev, review, QA, deploy) via ollama.
+- Tracked as a git submodule (`.gitmodules`); FastAPI agentic dev-team daemon with 5 AI agents (orchestrator, dev, review, QA, deploy) via ollama.
+- Container fixes landed 2026-08-16 (bind/advertise split, boot path, `/healthz`) — see the production-readiness section above.
 - Per-subproject roadmap: `devTeam/ROADMAP.md` — cite that file for forward-looking items.
 
 ### MyAgent — Active
 
-- Last commit: 2026-05-14 (`chore: add Dockerfile and .dockerignore for containerized runs`).
-- Git submodule; FastAPI gateway with structured tool dispatch over a local LLM.
+- Tracked as a git submodule (`.gitmodules`); FastAPI gateway with structured tool dispatch over a local LLM. Voice-agent path live (Whisper transcription, device tokens, ntfy push).
+- Next major thread: **voice-to-note (organize / summarize / integrate)** — promote raw voice transcripts into a structured PKM layer on top of the existing Whisper toolbox. Details in `MyAgent/ROADMAP.md` → Planned.
+- In-progress thread: **BudgetAgent** — first MyAgent tool surface shipped 2026-06-27 for budget summary, transaction lookup, account listing, and guarded categorization over the headless `budget` service (homelab `apps/budget`); auto-categorize-on-import remains planned. Details in `MyAgent/ROADMAP.md` → Planned.
 - Per-subproject roadmap: `MyAgent/ROADMAP.md`.
 
 ### MyWeb — Active
 
-- Tracked directly in this repo (not a submodule). Last change: 2026-05-17 TS 5.9 upgrade + VITE build args.
+- Tracked directly in this repo (not a submodule). Budget page, AI-configs settings and the MyMobile-parity mail work landed 2026-08-16.
 - React 19 + TS 5.9 + Vite 8 frontend for the whole tool suite.
 - Mail-page hardening tracked in `MyWeb/docs/MAIL_ROADMAP.md` and `MyWeb/docs/MAIL_BUGS.md`; news-page vision noted in user memory.
 - Per-subproject roadmap: `MyWeb/ROADMAP.md` (added 2026-05-10 as part of the v0.1 doc split).
+
+### MyMobile — Active (v0.1 scaffold)
+
+- React Native + Expo SDK 53 + TypeScript phone app. Talks to the same `/api/*` gateway as MyWeb over HTTPS.
+- v1 scope (shipped at scaffold time): login/register, mail list, per-row Apply, bulk Apply-all. Mirrors MyWeb's mail-triage UX so "delete = Trash, never expunge" is enforced identically on both clients.
+- No IMAP setup or AI-config management on mobile yet — those stay on the web for now; mobile is read+triage.
+- Distribution: Expo Go for dev/test, EAS Build for store/sideload later.
+- See `MyMobile/README.md` for run instructions and follow-up ideas (push notifications, voice capture, on-device IMAP setup, iPhone on-device LLM support).
 
 ### MyCli — Stub
 
@@ -89,9 +109,9 @@ See `STABLE_RELEASE_PLAN.md`'s execution log for the per-chunk audit trail.
 
 ## Cross-cutting work
 
-- **Stable release**: see `STABLE_RELEASE_PLAN.md` for the active release-stabilization plan (release blockers, doc truth-up, missing-doc creation, mail bug sweep, release tag).
+- **Stable release**: `STABLE_RELEASE_PLAN.md` is the historical v0.1 execution log; v0.2 will be cut once the post-release work above is verified end-to-end.
+- **Submodule bootstrap**: `git clone --recurse-submodules` (or `git submodule update --init --recursive` after a plain clone) pulls `devTeam/` and `MyAgent/`. See `HOWTO.md`.
 - ~~**Naming-collision rename**~~ — done 2026-08-16. `MyAgent/README.md`, `CLAUDE.md`, and the stale `ROADMAP.md` entry now all say MyAgent. Env var names deliberately left alone (see gaps above).
-- ~~**Bootstrap docs**~~ — done. `devTeam/` and `MyAgent/` became git submodules on 2026-05-16; `git clone --recurse-submodules` is the bootstrap, documented in `README.md` and `HOWTO.md`.
 
 ## Out of scope here
 

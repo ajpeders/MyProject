@@ -7,7 +7,7 @@ and a local-LLM agent page under a single authenticated layout.
 ## Stack
 
 - React 19 (`package.json` `react ^19.2.4`)
-- TypeScript `~5.4.0` (`package.json` `devDependencies.typescript`)
+- TypeScript `~5.9` (`package.json` `devDependencies.typescript ^5.9.0`) — bumped from 5.4 in commit `c0f5df1` after `tsconfig.app.json` started requiring TS 5.8+ semantics
 - Vite 8 (`package.json` `devDependencies.vite ^8.0.4`)
 - React Router 7 (`react-router-dom ^7.14.1`)
 - `terminal.css` + `src/styles/app.css`
@@ -27,7 +27,7 @@ The dev server proxies `/api/*` to MyAgent on port `8000`
 cd ../MyAgent && ./start.sh
 ```
 
-Endpoint settings live in `.env` (see `.env.example`).
+Endpoint settings live in `.env` (see `.env.example`). For Docker production builds, the `VITE_*` values are baked in at `docker build --build-arg` time (see `HOWTO.md` → "Docker Production Build").
 
 ## Common Commands
 

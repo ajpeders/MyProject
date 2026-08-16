@@ -1,5 +1,9 @@
 import "@testing-library/jest-dom";
 
+// MailPage gates dev-only UI on `import.meta.env.DEV && VITE_DEV_MODE === "true"`.
+// Vitest sets DEV=true; force VITE_DEV_MODE so the gated branches render in tests.
+import.meta.env.VITE_DEV_MODE = "true";
+
 // Use a Map to back localStorage so tests can actually read what they write
 const storage = new Map<string, string>();
 Object.defineProperty(globalThis, "localStorage", {

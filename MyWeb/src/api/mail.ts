@@ -60,6 +60,8 @@ export interface FetchMailRequest {
   unread_only?: boolean;
   preferences?: string;
   folder?: string;
+  fetch_all?: boolean;
+  incremental?: boolean;
 }
 
 export interface MoveMailResponse {
@@ -92,6 +94,8 @@ export function fetchMailOnly(request: FetchMailRequest = {}): Promise<MailPageR
       unread_only: request.unread_only ?? false,
       preferences: request.preferences ?? "",
       folder: request.folder ?? "",
+      fetch_all: request.fetch_all ?? false,
+      incremental: request.incremental ?? false,
     }),
   });
 }
@@ -105,6 +109,8 @@ export function fetchMail(request: FetchMailRequest = {}): Promise<MailPageRespo
       unread_only: request.unread_only ?? false,
       preferences: request.preferences ?? "",
       folder: request.folder ?? "",
+      fetch_all: request.fetch_all ?? false,
+      incremental: request.incremental ?? false,
     }),
   });
 }
