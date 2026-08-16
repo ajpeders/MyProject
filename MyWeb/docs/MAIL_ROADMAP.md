@@ -75,7 +75,11 @@ Backend (FastAPI)
 
 ### P2 — Backend
 - [ ] Prompt improvements — refine recommendation/intent system prompts for better triage accuracy (fewer false deletes, better calendar detection, etc.)
-- [ ] Incremental sync — currently re-fetches top N emails every time; should use UIDVALIDITY + last-seen UID for delta sync
+- [~] Incremental sync — primitives landed 2026-08-16: `fetch_since_uid()` in
+      `MyAgent/src/core/actions/mail_imap.py` plus a persisted
+      `email_sync_state.last_uid` baseline, both tested. `MailService.fetch()`
+      still does the full top-N fetch — wiring needs validation against a real
+      IMAP account, and deletions still need a periodic full reconcile.
 - [ ] Background sync — periodic IMAP poll instead of on-demand only
 - [x] Rate limiting on LLM analysis — per-user 10s cooldown on explicit
       re-analysis (`MyAgent/src/services/mail/rate_limit.py`). Returns 429 with a
