@@ -46,7 +46,19 @@ function saveCachedEmails(emails: MailSummary[]) {
 }
 
 function recommendationLabel(email: MailSummary) {
-  return email.recommendation?.trim() || "N/A";
+  const rec = email.recommendation?.trim();
+  if (rec) return rec;
+  // An empty recommendation is not a failed one. The backend always writes an
+  // action when analysis runs (falling back to "review" even when the LLM call
+  // throws), so blank means the email arrived via a fetch with analyze=false
+  // and has not been analyzed yet. "N/A" read like an error; say what is true.
+  return needsAnalysis(email) ? "not analyzed" : "—";
+}
+
+function recommendationTitle(email: MailSummary) {
+  if (email.recommendation_reason) return email.recommendation_reason;
+  if (needsAnalysis(email)) return "Not analyzed yet — run Re-analyze to get a recommendation";
+  return undefined;
 }
 
 function recommendationClass(email: MailSummary) {
@@ -1284,7 +1296,7 @@ export default function MailPage() {
                       {email.read === false ? <span className="mail-unread-dot" aria-label="Unread" title="Unread" /> : null}
                       <span
                         className={`rec-badge rec-${recommendationClass(email)}`}
-                        title={email.recommendation_reason || undefined}
+                        title={recommendationTitle(email)}
                       >
                         {recommendationLabel(email)}
                       </span>

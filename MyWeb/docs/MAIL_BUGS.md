@@ -7,15 +7,28 @@ Status reconciliation done 2026-05-10 against `src/tools/mail/MailPage.tsx`; re-
 
 ## Open
 
-### #7 — recommendationLabel returns "N/A" (Bug — investigate upstream)
+None.
 
-- Symptom: `recommendationLabel()` returns the literal string `"N/A"` when
-  no recommendation is present on a message.
-- Suspected cause: Upstream analysis pipeline is not producing a
-  recommendation for some messages. Root cause is **not** in `MailPage.tsx`;
-  the `"N/A"` is just the fallback render at lines 44-46.
-- Location: `src/tools/mail/MailPage.tsx` lines 44-46. Investigation needed
-  in the analysis pipeline (outside this file).
+## Fixed 2026-08-16
+
+### #7 — recommendationLabel returned "N/A" (was: investigate upstream)
+
+Traced and closed. The suspected cause — "the analysis pipeline fails to
+produce a recommendation" — was wrong. `MailEngine.add_recommendations`
+(`MyAgent/src/core/mail_engine.py`) always writes an action: unmatched indices
+default to `"review"`, and the `except` branch sets `"review"` on every email
+even when the LLM call throws. Analysis cannot leave the field blank.
+
+Blank therefore means the email was never analyzed — it arrived through
+`MailService.fetch(analyze=False)`, which serializes
+`email.get("recommendation", "")` as an empty string.
+
+So this was a labelling bug, not a pipeline bug: `"N/A"` read like an error for
+a message that was simply awaiting analysis. The badge now shows
+`not analyzed` (with a tooltip pointing at Re-analyze) when no analysis fields
+are present, and `—` in the impossible-but-defensive case of a message that has
+other analysis fields but no action. Regression tests in `MailPage.test.tsx`
+cover both, and were confirmed to fail against the old `"N/A"` fallback.
 
 ## Fixed 2026-05-10 (UX batch)
 

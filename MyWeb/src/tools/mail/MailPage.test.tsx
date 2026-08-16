@@ -388,6 +388,45 @@ describe("MailPage", () => {
     };
   }
 
+  // ── Bug #7: "N/A" recommendation ──────────────────────────────
+  // The backend always writes an action when analysis runs — it falls back to
+  // "review" even when the LLM call throws — so a blank recommendation means the
+  // email came from a fetch with analyze=false, not that analysis failed.
+
+  it("labels an unanalyzed email 'not analyzed' rather than 'N/A'", async () => {
+    vi.spyOn(mail, "getMailPage").mockResolvedValue({
+      content: "ok",
+      emails: [{
+        id: "message-2",
+        index: 1,
+        subject: "Unanalyzed",
+        from: "ops@example.com",
+        date: "2026-04-19",
+        account: "Personal",
+        read: false,
+      }],
+      page: 1,
+      total_pages: 1,
+      total_emails: 1,
+    });
+    render(<MemoryRouter><MailPage /></MemoryRouter>);
+    expect(await screen.findByText("not analyzed")).toBeInTheDocument();
+    expect(screen.queryByText("N/A")).not.toBeInTheDocument();
+  });
+
+  it("still shows the recommendation when analysis has run", async () => {
+    vi.spyOn(mail, "getMailPage").mockResolvedValue({
+      content: "ok",
+      emails: [withRecommendation("archive")],
+      page: 1,
+      total_pages: 1,
+      total_emails: 1,
+    });
+    render(<MemoryRouter><MailPage /></MemoryRouter>);
+    expect(await screen.findByText("archive")).toBeInTheDocument();
+    expect(screen.queryByText("not analyzed")).not.toBeInTheDocument();
+  });
+
   it("apply button on a 'delete' recommendation routes to Trash, never expunges", async () => {
     vi.spyOn(mail, "getMailPage").mockResolvedValue({
       content: "ok",
