@@ -52,7 +52,7 @@ These will land in v0.2 when tagged; for the per-feature changelog of each subpr
 - v1 scope (shipped at scaffold time): login/register, mail list, per-row Apply, bulk Apply-all. Mirrors MyWeb's mail-triage UX so "delete = Trash, never expunge" is enforced identically on both clients.
 - No IMAP setup or AI-config management on mobile yet — those stay on the web for now; mobile is read+triage.
 - Distribution: Expo Go for dev/test, EAS Build for store/sideload later.
-- See `MyMobile/README.md` for run instructions and follow-up ideas (push notifications, voice capture, on-device IMAP setup).
+- See `MyMobile/README.md` for run instructions and follow-up ideas (push notifications, voice capture, on-device IMAP setup, iPhone on-device LLM support).
 
 ### MyCli — Stub
 

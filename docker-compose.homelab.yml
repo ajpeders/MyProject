@@ -4,49 +4,11 @@
 # includes this file via ../apps/MyProject/docker-compose.homelab.yml.
 
 services:
-  myagent:
-    container_name: myagent
-    # Paused 2026-06-21: myproject taken dormant. Excluded from the default
-    # `docker compose up` via this profile. Re-enable by removing the profiles
-    # key. State at state/myproject/myagent is preserved.
-    profiles: ["disabled"]
-    build:
-      context: ./MyAgent
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    # Full-mailbox sync (fetch_all) holds every email in memory at once; a 1g
-    # cap OOM-killed mid-fetch on Gmail-sized inboxes. Bump until we add chunking.
-    mem_limit: 6g
-    environment:
-      HOST: 0.0.0.0
-      PORT: "8000"
-      JWT_SECRET: ${MYAGENT_JWT_SECRET}
-      MYDEVTEAM_API_KEY: ${MYAGENT_API_KEY}
-      ALLOWED_ORIGINS: https://${MYPROJECT_DOMAIN}
-      LLM_PROVIDER: ollama
-      LLM_MODEL: ${LLM_MODEL:-qwen3:8b}
-      OLLAMA_HOST: ${OLLAMA_HOST:-http://192.168.0.40:11434}
-      MYDEVTEAM_DATA_DIR: /data
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - ../../state/myproject/myagent:/data
-      # MyAgent spawns its alpine sandbox via the host docker daemon.
-      # SECURITY: root-equivalent host access — by design.
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - web
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=web
-      - traefik.http.services.myagent.loadbalancer.server.port=8000
-      - traefik.http.routers.myproject-api.rule=Host(`${MYPROJECT_DOMAIN}`) && PathPrefix(`/api`)
-      - traefik.http.routers.myproject-api.entrypoints=websecure
-      - traefik.http.routers.myproject-api.tls=true
-      - traefik.http.routers.myproject-api.tls.certresolver=letsencrypt
-      - traefik.http.routers.myproject-api.middlewares=local-only@file
-      - traefik.http.routers.myproject-api.service=myagent
-      - traefik.http.routers.myproject-api.priority=20
+  # myagent REMOVED 2026-07-06 (security): it mounted the host docker socket
+  # read-write and shipped a default demo-login password — a LAN→host-root path.
+  # The service was already dormant (profiles: disabled). devTeam/myWeb remain
+  # defined below but are likewise paused. To bring MyProject back, restore the
+  # myagent service from git history and secure the demo login + docker socket.
 
   devteam:
     container_name: devteam
@@ -84,7 +46,7 @@ services:
       - traefik.http.middlewares.myproject-devteam-strip.stripprefix.prefixes=/devteam-api
 
   myweb:
-    container_name: myweb
+    container_name: myproject-web
     # Paused 2026-06-21: myproject dormant (myweb is just myagent's frontend).
     # Re-enable by removing the profiles key.
     profiles: ["disabled"]
@@ -101,8 +63,6 @@ services:
         VITE_API_KEY: ${MYAGENT_API_KEY}
     restart: unless-stopped
     mem_limit: 128m
-    depends_on:
-      - myagent
     networks:
       - web
     labels:

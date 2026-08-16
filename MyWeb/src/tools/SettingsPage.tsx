@@ -6,52 +6,49 @@ import {
   deleteImapAccount,
   type ImapAccount,
 } from "../api/imap";
-import { getMailConfig, updateMailConfig } from "../api/mailConfig";
+import { getMailConfig, setMailAIConfig } from "../api/mailConfig";
 import {
-  isAuthenticated,
-  isAdmin,
-  createOrRotateDeviceToken,
-  getDeviceTokenMeta,
-  revokeDeviceToken,
-  type DeviceTokenMeta,
-} from "../api/auth";
-import { getApiKey, setApiKey as saveApiKey, ApiError } from "../api/client";
-import { TOPICS, type NewsTopic } from "./news/sources";
-import {
-  getSources,
-  createSource,
-  updateSource as apiUpdateSource,
-  deleteSource as apiDeleteSource,
-  seedDefaults,
-  type NewsSource,
-} from "../api/news";
-import { getProfile, updateInterests } from "../api/profile";
+  listAIConfigs,
+  createAIConfig,
+  updateAIConfig,
+  deleteAIConfig,
+  type AIConfig,
+  type AIProvider,
+} from "../api/aiConfigs";
+import { isAuthenticated } from "../api/auth";
+import { ApiError } from "../api/client";
 
-type SettingsTab = "general" | "mail" | "news";
+type SettingsTab = "ai" | "mail";
+
+const TAB_FROM_HASH: Record<string, SettingsTab> = { "#ai": "ai", "#mail": "mail" };
+
+function initialTab(): SettingsTab {
+  if (typeof window === "undefined") return "ai";
+  return TAB_FROM_HASH[window.location.hash] ?? "ai";
+}
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<SettingsTab>("general");
+  const [tab, setTab] = useState<SettingsTab>(initialTab);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [authError, setAuthError] = useState(false);
 
-  // General
-  const [apiKey, setApiKey] = useState(getApiKey);
-  const [apiKeyNotice, setApiKeyNotice] = useState("");
+  // ── AI tab ──
+  const [aiConfigs, setAIConfigs] = useState<AIConfig[]>([]);
+  const [aiLoadError, setAILoadError] = useState("");
+  const [aiFormOpen, setAIFormOpen] = useState(false);
+  const [aiEditingId, setAIEditingId] = useState<string | null>(null);
+  const [aiName, setAIName] = useState("");
+  const [aiProvider, setAIProvider] = useState<AIProvider>("ollama");
+  const [aiHost, setAIHost] = useState("");
+  const [aiApiKey, setAIApiKey] = useState("");
+  const [aiModel, setAIModel] = useState("");
+  const [aiFormError, setAIFormError] = useState("");
+  const [aiSaving, setAISaving] = useState(false);
+  const [aiConfirmDeleteId, setAIConfirmDeleteId] = useState<string | null>(null);
 
-  // Device token (for iPhone Shortcut)
-  const [tokenMeta, setTokenMeta] = useState<DeviceTokenMeta | null>(null);
-  const [tokenPlaintext, setTokenPlaintext] = useState("");
-  const [tokenError, setTokenError] = useState("");
-  const [tokenBusy, setTokenBusy] = useState(false);
-
-  // Profile
-  const [interests, setInterests] = useState<string[]>([]);
-  const [newInterest, setNewInterest] = useState("");
-  const [interestsError, setInterestsError] = useState("");
-
-  // Mail
+  // ── Mail tab ──
   const [accounts, setAccounts] = useState<ImapAccount[]>([]);
   const [deleteError, setDeleteError] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -62,23 +59,9 @@ export default function SettingsPage() {
   const [newPass, setNewPass] = useState("");
   const [addError, setAddError] = useState("");
   const [adding, setAdding] = useState(false);
-  const [mailModel, setMailModel] = useState("");
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [showMailModelOptions, setShowMailModelOptions] = useState(false);
-  const [mailModelNotice, setMailModelNotice] = useState("");
-  const [mailModelError, setMailModelError] = useState("");
-  const [savingMailModel, setSavingMailModel] = useState(false);
-
-  // News sources (admin)
-  const [newsSources, setNewsSources] = useState<NewsSource[]>([]);
-  const [newsSourcesLoading, setNewsSourcesLoading] = useState(true);
-  const [newsSourcesError, setNewsSourcesError] = useState("");
-  const [newsLabel, setNewsLabel] = useState("");
-  const [newsTopic, setNewsTopic] = useState<NewsTopic>("Tech");
-  const [newsFeedUrl, setNewsFeedUrl] = useState("");
-  const [addingSource, setAddingSource] = useState(false);
-  const [seeding, setSeeding] = useState(false);
-  const [confirmDeleteSourceId, setConfirmDeleteSourceId] = useState<string | null>(null);
+  const [mailAIConfigId, setMailAIConfigId] = useState<string | null>(null);
+  const [mailAIError, setMailAIError] = useState("");
+  const [mailAINotice, setMailAINotice] = useState("");
 
   useEffect(() => {
     if (!isAuthenticated()) { navigate("/login"); return; }
@@ -92,98 +75,100 @@ export default function SettingsPage() {
         }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
+    listAIConfigs()
+      .then((data) => { if (!cancelled) setAIConfigs(data); })
+      .catch((err) => { if (!cancelled) setAILoadError(err instanceof Error ? err.message : "Failed to load AI configs"); });
     getMailConfig()
-      .then((data) => { if (!cancelled) { setMailModel(data.mail_model); setAvailableModels(data.available_models); } })
-      .catch((err) => { if (!cancelled && !(err instanceof ApiError && err.status === 401)) setMailModelError(err instanceof Error ? err.message : "Failed to load mail model"); });
-    getProfile()
-      .then((data) => { if (!cancelled) setInterests(data.interests); })
+      .then((data) => { if (!cancelled) setMailAIConfigId(data.ai_config_id); })
       .catch(() => {});
-    getDeviceTokenMeta()
-      .then((meta) => { if (!cancelled) setTokenMeta(meta); })
-      .catch(() => {});
-    if (isAdmin()) {
-      getSources()
-        .then((data) => { if (!cancelled) setNewsSources(data.sources); })
-        .catch((err) => { if (!cancelled) setNewsSourcesError(err instanceof Error ? err.message : "Failed to load news sources"); })
-        .finally(() => { if (!cancelled) setNewsSourcesLoading(false); });
-    } else { setNewsSourcesLoading(false); }
     return () => { cancelled = true; };
   }, [navigate]);
 
-  // ── Handlers ──────────────────────────────────────
+  useEffect(() => {
+    function onHash() {
+      const next = TAB_FROM_HASH[window.location.hash];
+      if (next) setTab(next);
+    }
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
-  function handleApiKeySave(e: FormEvent) {
-    e.preventDefault();
-    saveApiKey(apiKey);
-    setApiKeyNotice(apiKey.trim() ? "API key saved." : "API key cleared.");
-  }
-
-  async function handleGenerateToken() {
-    setTokenBusy(true);
-    setTokenError("");
-    try {
-      const result = await createOrRotateDeviceToken();
-      setTokenPlaintext(result.token);
-      setTokenMeta({ exists: true, last4: result.last4, created_at: result.created_at, last_used_at: null });
-    } catch (err) {
-      setTokenError(err instanceof Error ? err.message : "Failed to generate token");
-    } finally {
-      setTokenBusy(false);
+  function switchTab(next: SettingsTab) {
+    setTab(next);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", `#${next}`);
     }
   }
 
-  async function handleRevokeToken() {
-    setTokenBusy(true);
-    setTokenError("");
+  // ── AI tab handlers ─────────────────────────────────────
+
+  function openAddForm() {
+    setAIEditingId(null);
+    setAIName("");
+    setAIProvider("ollama");
+    setAIHost("");
+    setAIApiKey("");
+    setAIModel("");
+    setAIFormError("");
+    setAIFormOpen(true);
+  }
+
+  function openEditForm(cfg: AIConfig) {
+    setAIEditingId(cfg.id);
+    setAIName(cfg.name);
+    setAIProvider(cfg.provider);
+    setAIHost(cfg.host);
+    setAIApiKey("");
+    setAIModel(cfg.model);
+    setAIFormError("");
+    setAIFormOpen(true);
+  }
+
+  async function handleSaveAIConfig(e: FormEvent) {
+    e.preventDefault();
+    setAISaving(true);
+    setAIFormError("");
     try {
-      await revokeDeviceToken();
-      setTokenMeta({ exists: false });
-      setTokenPlaintext("");
+      if (aiEditingId) {
+        const body: { name: string; host?: string; model: string; api_key?: string } = {
+          name: aiName,
+          model: aiModel,
+        };
+        if (aiProvider === "ollama" || aiProvider === "openai_compatible") body.host = aiHost;
+        if (aiApiKey) body.api_key = aiApiKey;
+        const updated = await updateAIConfig(aiEditingId, body);
+        setAIConfigs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      } else {
+        const body: { name: string; provider: AIProvider; host?: string; model: string; api_key?: string } = {
+          name: aiName,
+          provider: aiProvider,
+          model: aiModel,
+        };
+        if (aiProvider === "ollama" || aiProvider === "openai_compatible") body.host = aiHost;
+        if (aiApiKey) body.api_key = aiApiKey;
+        const created = await createAIConfig(body);
+        setAIConfigs((prev) => [...prev, created]);
+      }
+      setAIFormOpen(false);
     } catch (err) {
-      setTokenError(err instanceof Error ? err.message : "Failed to revoke token");
+      setAIFormError(err instanceof Error ? err.message : "Failed to save config");
     } finally {
-      setTokenBusy(false);
+      setAISaving(false);
     }
   }
 
-  function handleCopyToken() {
-    if (!tokenPlaintext) return;
-    void navigator.clipboard?.writeText(tokenPlaintext);
-  }
-
-  function handleDismissToken() {
-    setTokenPlaintext("");
-  }
-
-  async function handleAddInterest(e: FormEvent) {
-    e.preventDefault();
-    const trimmed = newInterest.trim();
-    if (!trimmed || interests.includes(trimmed)) return;
-    const updated = [...interests, trimmed];
-    setInterests(updated);
-    setNewInterest("");
-    setInterestsError("");
-    try { await updateInterests(updated); }
-    catch (err) { setInterestsError(err instanceof Error ? err.message : "Failed to update"); }
-  }
-
-  async function handleRemoveInterest(interest: string) {
-    const updated = interests.filter((i) => i !== interest);
-    setInterests(updated);
-    try { await updateInterests(updated); }
-    catch (err) { setInterestsError(err instanceof Error ? err.message : "Failed to update"); }
-  }
-
-  async function handleMailModelSave(e: FormEvent) {
-    e.preventDefault();
-    setSavingMailModel(true); setMailModelError(""); setMailModelNotice("");
+  async function handleDeleteAIConfig(id: string) {
     try {
-      const r = await updateMailConfig(mailModel);
-      setMailModel(r.mail_model); setAvailableModels(r.available_models);
-      setMailModelNotice(`Saved: ${r.mail_model}`);
-    } catch (err) { setMailModelError(err instanceof Error ? err.message : "Failed to save"); }
-    finally { setSavingMailModel(false); }
+      await deleteAIConfig(id);
+      setAIConfigs((prev) => prev.filter((c) => c.id !== id));
+      if (mailAIConfigId === id) setMailAIConfigId(null);
+      setAIConfirmDeleteId(null);
+    } catch (err) {
+      setAILoadError(err instanceof Error ? err.message : "Failed to delete config");
+    }
   }
+
+  // ── Mail tab handlers ───────────────────────────────────
 
   async function handleAddAccount(e: FormEvent) {
     e.preventDefault(); setAddError(""); setAdding(true);
@@ -201,47 +186,29 @@ export default function SettingsPage() {
     catch (err) { setDeleteError(err instanceof Error ? err.message : "Failed to delete"); }
   }
 
-  async function handleAddNewsSource(e: FormEvent) {
-    e.preventDefault();
-    const label = newsLabel.trim(), url = newsFeedUrl.trim();
-    if (!label || !url) return;
-    setAddingSource(true); setNewsSourcesError("");
+  async function handleMailAIConfigChange(value: string) {
+    const next = value || null;
+    setMailAIConfigId(next);
+    setMailAIError("");
+    setMailAINotice("");
     try {
-      const s = await createSource(label, newsTopic, url);
-      setNewsSources((c) => [...c, s]); setNewsLabel(""); setNewsFeedUrl("");
-    } catch (err) { setNewsSourcesError(err instanceof Error ? err.message : "Failed to add"); }
-    finally { setAddingSource(false); }
+      await setMailAIConfig(next);
+      setMailAINotice(next ? "Saved AI config for Mail." : "Cleared AI config for Mail.");
+    } catch (err) {
+      setMailAIError(err instanceof Error ? err.message : "Failed to save");
+    }
   }
 
-  async function handleToggleNewsSource(id: string) {
-    const s = newsSources.find((x) => x.id === id);
-    if (!s) return;
-    try {
-      const u = await apiUpdateSource(id, !s.enabled);
-      setNewsSources((c) => c.map((x) => (x.id === id ? u : x)));
-    } catch (err) { setNewsSourcesError(err instanceof Error ? err.message : "Failed to update"); }
-  }
-
-  async function handleDeleteNewsSource(id: string) {
-    try { await apiDeleteSource(id); setNewsSources((c) => c.filter((x) => x.id !== id)); setConfirmDeleteSourceId(null); }
-    catch (err) { setNewsSourcesError(err instanceof Error ? err.message : "Failed to delete"); }
-  }
-
-  async function handleSeedDefaults() {
-    setSeeding(true); setNewsSourcesError("");
-    try {
-      const r = await seedDefaults();
-      if (r.added.length > 0) setNewsSources((c) => [...c, ...r.added]);
-    } catch (err) { setNewsSourcesError(err instanceof Error ? err.message : "Failed to load defaults"); }
-    finally { setSeeding(false); }
-  }
-
-  const filteredModels = availableModels.filter((m) => m.toLowerCase().includes(mailModel.toLowerCase()));
-  const tabs: { id: SettingsTab; label: string; admin?: boolean }[] = [
-    { id: "general", label: "General" },
-    { id: "mail", label: "Mail" },
-    { id: "news", label: "News" },
-  ];
+  const showHostField = aiProvider === "ollama" || aiProvider === "openai_compatible";
+  const showApiKeyField = aiProvider === "openai" || aiProvider === "anthropic" || aiProvider === "openai_compatible";
+  const modelPlaceholder = aiProvider === "ollama"
+    ? "qwen3:8b"
+    : aiProvider === "openai"
+      ? "gpt-4o-mini"
+      : aiProvider === "anthropic"
+        ? "claude-haiku-4-5-20251001"
+        : "model name";
+  const hostPlaceholder = aiProvider === "ollama" ? "http://192.168.0.40:11434" : "https://api.example.com/v1";
 
   return (
     <section className="settings-page">
@@ -256,92 +223,117 @@ export default function SettingsPage() {
       )}
 
       <div className="settings-tabs" role="tablist" aria-label="Settings sections">
-        {tabs.map((t) => {
-          if (t.admin && !isAdmin()) return null;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              className={tab === t.id ? "settings-tab is-active" : "settings-tab"}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          );
-        })}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "ai"}
+          className={tab === "ai" ? "settings-tab is-active" : "settings-tab"}
+          onClick={() => switchTab("ai")}
+        >
+          AI
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "mail"}
+          className={tab === "mail" ? "settings-tab is-active" : "settings-tab"}
+          onClick={() => switchTab("mail")}
+        >
+          Mail
+        </button>
       </div>
 
-      {/* ── General ─────────────────────────────── */}
-      {tab === "general" && (
+      {/* ── AI ────────────────────────────────── */}
+      {tab === "ai" && (
         <div className="settings-panel">
-          <div className="settings-field">
-            <label htmlFor="myagent-api-key">API Key</label>
-            <form className="settings-inline-form" onSubmit={handleApiKeySave}>
-              <input
-                id="myagent-api-key"
-                type="password"
-                value={apiKey}
-                onChange={(e) => { setApiKey(e.target.value); setApiKeyNotice(""); }}
-                placeholder="MYDEVTEAM_API_KEY"
-              />
-              <button type="submit">Save</button>
-            </form>
-            {apiKeyNotice ? <p className="settings-notice">{apiKeyNotice}</p> : null}
-          </div>
+          <h2>AI Configs</h2>
+          <p className="settings-panel-desc">Per-user AI providers. Tools (like Mail) pick one of these by name.</p>
 
-          <div className="device-token-section">
-            <h2>Whisper device token</h2>
-            <p>
-              Use this token to call <code>/api/whisper/transcribe</code> from an iPhone Shortcut.
-              Treat it like a password.
-            </p>
+          {aiLoadError ? <p className="settings-error">{aiLoadError}</p> : null}
 
-            {tokenError && <p className="settings-error">{tokenError}</p>}
-
-            {tokenMeta?.exists ? (
-              <p className="device-token-status">
-                ● Active &middot; ····{tokenMeta.last4}
-                {tokenMeta.created_at && (
-                  <> &middot; created {new Date(tokenMeta.created_at * 1000).toLocaleDateString()}</>
-                )}
-              </p>
-            ) : (
-              <p className="device-token-status">○ None</p>
-            )}
-
-            <div className="device-token-actions">
-              <button type="button" onClick={() => void handleGenerateToken()} disabled={tokenBusy}>
-                {tokenMeta?.exists ? "Rotate" : "Generate"}
-              </button>
-              {tokenMeta?.exists && (
-                <button
-                  type="button"
-                  onClick={() => void handleRevokeToken()}
-                  disabled={tokenBusy}
-                  className="delete-btn"
-                >
-                  Revoke
-                </button>
-              )}
-            </div>
-
-            {tokenPlaintext && (
-              <div className="device-token-modal" role="alert">
-                <p>
-                  <strong>Save this now.</strong> You won't see it again.
-                </p>
-                <pre>{tokenPlaintext}</pre>
-                <p className="device-token-warning">Closing this clears the token from this page.</p>
-                <div className="device-token-actions">
-                  <button type="button" onClick={handleCopyToken}>Copy</button>
-                  <button type="button" onClick={handleDismissToken}>I've saved it</button>
+          {aiConfigs.length > 0 ? (
+            <div className="settings-list">
+              {aiConfigs.map((cfg) => (
+                <div key={cfg.id} className="settings-list-item">
+                  <div className="settings-list-item-info">
+                    <strong>{cfg.name}</strong>
+                    <span className="settings-meta">
+                      <span className="settings-tag">{cfg.provider}</span>
+                      <span>{cfg.model}</span>
+                      {cfg.host ? <span>{cfg.host}</span> : null}
+                      {cfg.has_api_key ? <span className="settings-tag">has API key</span> : null}
+                    </span>
+                  </div>
+                  <div className="settings-list-item-actions">
+                    {aiConfirmDeleteId === cfg.id ? (
+                      <span className="settings-confirm-delete">
+                        Delete?
+                        <button type="button" onClick={() => void handleDeleteAIConfig(cfg.id)} className="delete-btn">Yes</button>
+                        <button type="button" onClick={() => setAIConfirmDeleteId(null)} className="cancel-btn">No</button>
+                      </span>
+                    ) : (
+                      <>
+                        <button type="button" onClick={() => openEditForm(cfg)}>Edit</button>
+                        <button type="button" onClick={() => setAIConfirmDeleteId(cfg.id)} className="delete-btn">Delete</button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : !aiFormOpen ? (
+            <p className="settings-hint">No AI configs yet. Add one to use with Mail or other tools.</p>
+          ) : null}
 
+          {aiFormOpen ? (
+            <div className="settings-sub-card">
+              <h3>{aiEditingId ? "Edit AI Config" : "Add AI Config"}</h3>
+              <form className="settings-form-stack" onSubmit={handleSaveAIConfig}>
+                <label>Name <input type="text" value={aiName} onChange={(e) => setAIName(e.target.value)} required placeholder="e.g. Local llama" /></label>
+                <label>Provider
+                  <select
+                    value={aiProvider}
+                    onChange={(e) => setAIProvider(e.target.value as AIProvider)}
+                    disabled={aiEditingId !== null}
+                  >
+                    <option value="ollama">Ollama</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="openai_compatible">OpenAI-compatible</option>
+                  </select>
+                </label>
+                {showHostField ? (
+                  <label>Host
+                    <input
+                      type="text"
+                      value={aiHost}
+                      onChange={(e) => setAIHost(e.target.value)}
+                      placeholder={hostPlaceholder}
+                      required={aiProvider === "openai_compatible"}
+                    />
+                  </label>
+                ) : null}
+                {showApiKeyField ? (
+                  <label>API Key
+                    <input
+                      type="password"
+                      value={aiApiKey}
+                      onChange={(e) => setAIApiKey(e.target.value)}
+                      placeholder={aiEditingId ? "•••••• (unchanged)" : "sk-..."}
+                    />
+                  </label>
+                ) : null}
+                <label>Model <input type="text" value={aiModel} onChange={(e) => setAIModel(e.target.value)} required placeholder={modelPlaceholder} /></label>
+                {aiFormError && <p className="settings-error">{aiFormError}</p>}
+                <div className="settings-form-actions">
+                  <button type="submit" disabled={aiSaving}>{aiSaving ? "Saving..." : "Save"}</button>
+                  <button type="button" className="settings-btn-ghost" onClick={() => setAIFormOpen(false)}>Cancel</button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <button type="button" onClick={openAddForm} className="settings-btn-outline">+ Add AI Config</button>
+          )}
         </div>
       )}
 
@@ -351,44 +343,25 @@ export default function SettingsPage() {
           <h2>Mail</h2>
 
           <div className="settings-field">
-            <label htmlFor="mail-model">AI Model</label>
-            <div className="settings-mail-model-picker">
-              <form className="settings-inline-form" onSubmit={handleMailModelSave}>
-                <input
-                  id="mail-model"
-                  type="text"
-                  role="combobox"
-                  aria-expanded={showMailModelOptions}
-                  aria-controls="mail-model-options"
-                  aria-autocomplete="list"
-                  value={mailModel}
-                  onFocus={() => setShowMailModelOptions(true)}
-                  onChange={(e) => { setMailModel(e.target.value); setShowMailModelOptions(true); setMailModelNotice(""); setMailModelError(""); }}
-                  placeholder="Search or type a model name"
-                />
-                <button type="button" onClick={() => setShowMailModelOptions((o) => !o)}>Models</button>
-                <button type="submit" disabled={savingMailModel}>{savingMailModel ? "Saving..." : "Save"}</button>
-              </form>
-              {showMailModelOptions ? (
-                <div className="settings-model-options" id="mail-model-options" role="listbox">
-                  {filteredModels.length > 0 ? filteredModels.map((model) => (
-                    <button
-                      key={model}
-                      type="button"
-                      role="option"
-                      className={`settings-model-option${model === mailModel ? " active" : ""}`}
-                      onClick={() => { setMailModel(model); setShowMailModelOptions(false); setMailModelNotice(""); setMailModelError(""); }}
-                    >
-                      {model}
-                    </button>
-                  )) : (
-                    <p className="settings-hint" style={{ padding: "0.75rem" }}>No matching models.</p>
-                  )}
-                </div>
-              ) : null}
-            </div>
-            {mailModelNotice ? <p className="settings-notice">{mailModelNotice}</p> : null}
-            {mailModelError ? <p className="settings-error">{mailModelError}</p> : null}
+            <label htmlFor="mail-ai-config">AI Config</label>
+            {aiConfigs.length === 0 ? (
+              <p className="settings-hint">
+                No AI configs yet. <a href="#ai" onClick={(e) => { e.preventDefault(); switchTab("ai"); }}>Create an AI config first</a>.
+              </p>
+            ) : (
+              <select
+                id="mail-ai-config"
+                value={mailAIConfigId ?? ""}
+                onChange={(e) => void handleMailAIConfigChange(e.target.value)}
+              >
+                <option value="">(server default)</option>
+                {aiConfigs.map((cfg) => (
+                  <option key={cfg.id} value={cfg.id}>{cfg.name}</option>
+                ))}
+              </select>
+            )}
+            {mailAINotice ? <p className="settings-notice">{mailAINotice}</p> : null}
+            {mailAIError ? <p className="settings-error">{mailAIError}</p> : null}
           </div>
 
           <div className="settings-field">
@@ -441,131 +414,6 @@ export default function SettingsPage() {
               </>
             )}
           </div>
-        </div>
-      )}
-
-      {/* ── News ───────────────────────────────── */}
-      {tab === "news" && (
-        <div className="settings-panel">
-          <div className="settings-field">
-            <label>Interests</label>
-            <p className="settings-panel-desc">Topics that shape your For You feed.</p>
-
-            {interestsError ? <p className="settings-error">{interestsError}</p> : null}
-
-            <form className="settings-inline-form" onSubmit={handleAddInterest}>
-              <input
-                type="text"
-                value={newInterest}
-                onChange={(e) => setNewInterest(e.target.value)}
-                placeholder="e.g. AI, hip hop, Rust, gaming"
-              />
-              <button type="submit" disabled={!newInterest.trim()}>Add</button>
-            </form>
-
-            {interests.length > 0 ? (
-              <div className="settings-tags" aria-label="Interests">
-                {interests.map((interest) => (
-                  <span key={interest} className="settings-tag">
-                    {interest}
-                    <button type="button" aria-label={`Remove ${interest}`} onClick={() => void handleRemoveInterest(interest)}>
-                      &times;
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="settings-hint">No interests yet. Add some to get personalized news.</p>
-            )}
-          </div>
-
-          <div className="settings-field">
-            <label htmlFor="news-model">Curation Model</label>
-            <div className="settings-mail-model-picker">
-              <form className="settings-inline-form" onSubmit={handleMailModelSave}>
-                <input
-                  id="news-model"
-                  type="text"
-                  role="combobox"
-                  aria-expanded={showMailModelOptions}
-                  aria-controls="news-model-options"
-                  aria-autocomplete="list"
-                  value={mailModel}
-                  onFocus={() => setShowMailModelOptions(true)}
-                  onChange={(e) => { setMailModel(e.target.value); setShowMailModelOptions(true); setMailModelNotice(""); setMailModelError(""); }}
-                  placeholder="Search or type a model name"
-                />
-                <button type="button" onClick={() => setShowMailModelOptions((o) => !o)}>Models</button>
-                <button type="submit" disabled={savingMailModel}>{savingMailModel ? "Saving..." : "Save"}</button>
-              </form>
-              {showMailModelOptions ? (
-                <div className="settings-model-options" id="news-model-options" role="listbox">
-                  {filteredModels.length > 0 ? filteredModels.map((model) => (
-                    <button
-                      key={model}
-                      type="button"
-                      role="option"
-                      className={`settings-model-option${model === mailModel ? " active" : ""}`}
-                      onClick={() => { setMailModel(model); setShowMailModelOptions(false); setMailModelNotice(""); setMailModelError(""); }}
-                    >
-                      {model}
-                    </button>
-                  )) : (
-                    <p className="settings-hint" style={{ padding: "0.75rem" }}>No matching models.</p>
-                  )}
-                </div>
-              ) : null}
-            </div>
-            {mailModelNotice ? <p className="settings-notice">{mailModelNotice}</p> : null}
-            {mailModelError ? <p className="settings-error">{mailModelError}</p> : null}
-          </div>
-
-          {isAdmin() && <>
-          <h3 className="settings-section-divider">Sources</h3>
-          <p className="settings-panel-desc">RSS feeds that power the news page for all users.</p>
-
-          {newsSourcesError ? <p className="settings-error">{newsSourcesError}</p> : null}
-
-          <form className="settings-source-form" onSubmit={handleAddNewsSource}>
-            <input type="text" value={newsLabel} onChange={(e) => setNewsLabel(e.target.value)} placeholder="Source name" />
-            <select value={newsTopic} onChange={(e) => setNewsTopic(e.target.value as NewsTopic)}>
-              {TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <input type="url" value={newsFeedUrl} onChange={(e) => setNewsFeedUrl(e.target.value)} placeholder="Feed URL" className="settings-source-url" />
-            <button type="submit" disabled={!newsLabel.trim() || !newsFeedUrl.trim() || addingSource}>
-              {addingSource ? "Adding..." : "Add"}
-            </button>
-          </form>
-
-          {newsSourcesLoading ? <p className="settings-hint">Loading sources...</p> : newsSources.length > 0 ? (
-            <div className="settings-list">
-              {newsSources.map((s) => (
-                <div key={s.id} className="settings-list-item">
-                  <label className="settings-list-item-toggle">
-                    <input type="checkbox" checked={s.enabled} onChange={() => void handleToggleNewsSource(s.id)} />
-                    <strong>{s.label}</strong>
-                  </label>
-                  <span className="settings-tag settings-tag-sm">{s.topic}</span>
-                  <a href={s.feed_url} target="_blank" rel="noreferrer" className="settings-meta settings-source-link">{s.feed_url}</a>
-                  <div className="settings-list-item-actions">
-                    {confirmDeleteSourceId === s.id ? (
-                      <span className="settings-confirm-delete">
-                        <button type="button" onClick={() => void handleDeleteNewsSource(s.id)} className="delete-btn">Yes</button>
-                        <button type="button" onClick={() => setConfirmDeleteSourceId(null)} className="cancel-btn">No</button>
-                      </span>
-                    ) : (
-                      <button type="button" onClick={() => setConfirmDeleteSourceId(s.id)} className="delete-btn">Delete</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : <p className="settings-hint">No sources configured.</p>}
-
-          <button type="button" onClick={() => void handleSeedDefaults()} disabled={seeding} className="settings-btn-outline">
-            {seeding ? "Loading..." : "Load default sources"}
-          </button>
-          </>}
         </div>
       )}
     </section>

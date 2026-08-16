@@ -124,6 +124,8 @@ interface MailState {
   sortMode: "time" | "importance" | "recommendation";
   selectedIndices: Set<number>;
   attachments: AttachmentMeta[];
+  aiConfigId: string | null;
+  aiConfigLoaded: boolean;
 }
 
 const initialMailState = (cachedEmails: MailSummary[]): MailState => ({
@@ -163,6 +165,8 @@ const initialMailState = (cachedEmails: MailSummary[]): MailState => ({
   sortMode: "time",
   selectedIndices: new Set(),
   attachments: [],
+  aiConfigId: null,
+  aiConfigLoaded: false,
 });
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
@@ -204,7 +208,8 @@ type MailAction =
   | { type: "REMOVE_EMAIL"; index: number }
   | { type: "CLEAR_VIEW" }
   | { type: "RESET_MAIL_CHECKED" }
-  | { type: "SET_SETUP_CLEARED" };
+  | { type: "SET_SETUP_CLEARED" }
+  | { type: "SET_AI_CONFIG"; value: string | null };
 
 function mailReducer(state: MailState, action: MailAction): MailState {
   switch (action.type) {
@@ -345,6 +350,8 @@ function mailReducer(state: MailState, action: MailAction): MailState {
       return { ...state, mailChecked: false, setupRequired: false };
     case "SET_SETUP_CLEARED":
       return { ...state, setupRequired: false };
+    case "SET_AI_CONFIG":
+      return { ...state, aiConfigId: action.value, aiConfigLoaded: true };
     default:
       return state;
   }
@@ -440,7 +447,10 @@ export default function MailPage() {
 
   useEffect(() => {
     getMailConfig()
-      .then((config) => dispatch({ type: "SET_PREFERENCES", value: config.mail_preferences ?? "" }))
+      .then((config) => {
+        dispatch({ type: "SET_PREFERENCES", value: config.mail_preferences ?? "" });
+        dispatch({ type: "SET_AI_CONFIG", value: config.ai_config_id ?? null });
+      })
       .catch(() => {});
   }, []);
 
@@ -450,12 +460,13 @@ export default function MailPage() {
       .catch(() => dispatch({ type: "SET_FOLDERS", folders: COMMON_FOLDERS }));
   }, [state.activeAccount]);
 
-  // Load any saved mailbox state on mount. If there is no saved state,
-  // the backend route falls back to sync outside dev mode.
+  // Load saved mailbox state on mount. No auto-fetch fallback: a full-mailbox
+  // pull blocks the request thread and times out Traefik on Gmail-sized
+  // inboxes. User clicks Sync or Fetch all explicitly.
   useEffect(() => {
     if (!state.accountsLoaded || initialLoadAttemptedRef.current) return;
     initialLoadAttemptedRef.current = true;
-    void loadMailPage(1, { allowFetchFallback: !DEV_MODE });
+    void loadMailPage(1);
   }, [state.accountsLoaded]);
 
   // Re-fetch when folder changes (skip the initial load)
@@ -574,16 +585,31 @@ export default function MailPage() {
     }
   }
 
-  async function fetchLatestMail() {
+  // Default sync pulls the 100 most recent emails. Full-mailbox sync is a
+  // separate, explicit action (fetchEntireMail) because it can take minutes
+  // on Gmail-sized inboxes and would otherwise hang the page on every load.
+  async function fetchLatestMail(options?: { fetchAll?: boolean }) {
     const current = stateRef.current;
     if (!current.accountsLoaded) return;
     syncProgress.start("sync");
     dispatch({ type: "SET_LOADING", loading: true });
-    dispatch({ type: "SET_LOADING_LABEL", value: "Syncing mailbox..." });
+    dispatch({ type: "SET_LOADING_LABEL", value: options?.fetchAll ? "Fetching entire mailbox (this can take a while)..." : "Syncing recent mail..." });
     dispatch({ type: "SET_ERROR", error: "" });
     try {
       const accountName = current.activeAccount;
-      const response = await fetchMail({ account: accountName, count: 10, unread_only: current.unreadOnly, preferences: current.preferences, folder: current.activeFolder });
+      const response = await fetchMail({
+        account: accountName,
+        count: options?.fetchAll ? 0 : 100,
+        fetch_all: options?.fetchAll ?? false,
+        // Delta sync on the default `sync` button — backend looks up
+        // last_seen_uid for this scope and only pulls UIDs greater than that.
+        // Falls back to the count-bounded path on first sync (no sync_state)
+        // or on UIDVALIDITY change. fetch_all overrides this anyway.
+        incremental: !options?.fetchAll,
+        unread_only: current.unreadOnly,
+        preferences: current.preferences,
+        folder: current.activeFolder,
+      });
       dispatch({
         type: "SET_EMAILS",
         emails: response.emails,
@@ -644,6 +670,80 @@ export default function MailPage() {
       dispatch({ type: "CLOSE_EMAIL" });
     } catch (err) {
       dispatch({ type: "SET_ACTION_ERROR", error: err instanceof Error ? err.message : "Bulk move failed" });
+    } finally {
+      dispatch({ type: "SET_ACTION_LOADING", value: false });
+    }
+  }
+
+  // Per-email "Apply recommendation" — runs the AI's suggested action.
+  // `delete` always goes to Trash (we never expunge); `archive` goes to the
+  // recommended folder (defaults to "Archive"); `calendar` fires the first
+  // suggested add_to_calendar action; `reply`/`review`/`todo` open the email
+  // (no destructive change). Returns true on success so the bulk path can
+  // count completed actions.
+  async function applyRecommendation(email: MailSummary): Promise<boolean> {
+    const rec = recommendationClass(email);
+    try {
+      if (rec === "delete") {
+        await moveMail([email.index], "Trash");
+        dispatch({ type: "REMOVE_EMAIL", index: email.index });
+        return true;
+      }
+      if (rec === "archive") {
+        const folder = email.recommended_folder || "Archive";
+        await moveMail([email.index], folder);
+        dispatch({ type: "REMOVE_EMAIL", index: email.index });
+        return true;
+      }
+      if (rec === "calendar") {
+        const calAction = email.suggested_actions?.find((a) => a.type === "add_to_calendar");
+        if (calAction) {
+          await handleSuggestedAction(calAction, email.subject);
+          return true;
+        }
+      }
+      // reply / review / todo / unknown — open the email, no destructive change.
+      dispatch({ type: "SET_HIGHLIGHTED_POS", pos: 0 });
+      openEmailRef.current(email.index);
+      return true;
+    } catch (err) {
+      dispatch({ type: "SET_ACTION_ERROR", error: err instanceof Error ? err.message : "Apply failed" });
+      return false;
+    }
+  }
+
+  // Bulk "Apply all recommendations" — runs applyRecommendation() across every
+  // currently-visible analyzed email. Stops on first failure; the user can
+  // resume on the next click since each successful move removes the email
+  // from the list. We hard-skip emails whose recommendation requires a manual
+  // decision (reply/review/todo) so bulk mode only performs reversible
+  // janitor moves (Archive / Trash) and calendar additions.
+  async function applyAllRecommendations() {
+    const targets = stateRef.current.emails.filter((e) => {
+      const rec = recommendationClass(e);
+      return rec === "delete" || rec === "archive" || rec === "calendar";
+    });
+    if (targets.length === 0) return;
+
+    const counts = targets.reduce<Record<string, number>>((acc, e) => {
+      const rec = recommendationClass(e);
+      acc[rec] = (acc[rec] || 0) + 1;
+      return acc;
+    }, {});
+    const summary = Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(", ");
+    if (!window.confirm(`Apply recommendations on ${targets.length} email${targets.length === 1 ? "" : "s"} (${summary})? Delete goes to Trash, never permanent.`)) {
+      return;
+    }
+
+    dispatch({ type: "SET_ACTION_LOADING", value: true });
+    dispatch({ type: "SET_ACTION_ERROR", error: "" });
+    try {
+      for (const email of targets) {
+        const ok = await applyRecommendation(email);
+        if (!ok) break;
+      }
+      const remaining = stateRef.current.emails;
+      saveCachedEmails(remaining);
     } finally {
       dispatch({ type: "SET_ACTION_LOADING", value: false });
     }
@@ -763,6 +863,43 @@ export default function MailPage() {
     }
   }
 
+  // Bulk-create calendar events from every loaded email that has an
+  // add_to_calendar suggested_action. Safe to run repeatedly: createEvent
+  // dedupes by (title, date) on the backend.
+  async function applyAllCalendarSuggestions() {
+    const targets = stateRef.current.emails.flatMap((email) =>
+      (email.suggested_actions || [])
+        .filter((a) => a.type === "add_to_calendar")
+        .map((action) => ({ email, action }))
+    );
+    if (targets.length === 0) return;
+    if (!window.confirm(`Create ${targets.length} calendar event${targets.length === 1 ? "" : "s"} from email suggestions?`)) {
+      return;
+    }
+    dispatch({ type: "SET_ACTION_LOADING", value: true });
+    let added = 0;
+    let failed = 0;
+    for (const { email, action } of targets) {
+      try {
+        await createEvent({
+          title: action.title || email.subject || "Event from email",
+          date: action.date || "",
+          time: action.time,
+        });
+        added++;
+      } catch {
+        failed++;
+      }
+    }
+    dispatch({ type: "SET_ACTION_LOADING", value: false });
+    dispatch({
+      type: "SET_FEEDBACK_NOTICE",
+      value: failed
+        ? `Added ${added} of ${targets.length} events (${failed} failed).`
+        : `Added ${added} calendar event${added === 1 ? "" : "s"}.`,
+    });
+  }
+
   async function handleSuggestedAction(action: SuggestedAction, emailSubject?: string) {
     if (action.type === "add_to_calendar") {
       try {
@@ -818,16 +955,16 @@ export default function MailPage() {
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
-
-  if (!state.accountsLoaded || (!state.mailChecked && !state.setupRequired)) {
-    return null;
-  }
+  // We render the full page chrome immediately, even before accountsLoaded /
+  // mailChecked resolve, so the user sees the hero + toolbar instead of a
+  // blank screen on cold loads. The inbox list shows a skeleton spinner
+  // while initial state is still arriving (see the `inboxBusy` flag below).
 
   if (state.setupRequired) {
     return (
       <section className="mail-tool mail-setup-only">
         <p>No IMAP accounts are configured.</p>
-        <Link to="/settings" className="mail-setup-button">Set up IMAP to fetch mail.</Link>
+        <Link to="/settings#mail" className="mail-setup-button">Set up IMAP to fetch mail.</Link>
         {DEV_MODE && (
           <button type="button" className="mail-setup-button" onClick={() => void seedDevMail()} disabled={state.loading} style={{ marginLeft: "0.5rem" }}>
             Load dev data
@@ -841,13 +978,27 @@ export default function MailPage() {
     return (
       <section className="mail-tool mail-setup-only">
         <p>Session expired.</p>
-        <Link to="/settings" className="mail-setup-button">Go to Settings</Link>
+        <Link to="/settings#mail" className="mail-setup-button">Go to Settings</Link>
       </section>
     );
   }
 
   return (
     <section className="mail-tool mail-shell">
+      {state.loading && (
+        <div className="mail-loading-bar" role="status" aria-live="polite">
+          <span className="mail-loading-spinner" aria-hidden="true" />
+          <span>{state.loadingLabel || "Loading..."}</span>
+        </div>
+      )}
+      {state.aiConfigLoaded && !state.aiConfigId ? (
+        <div className="mail-ai-config-banner" role="note" aria-label="AI config missing">
+          <span>No AI config selected — emails won&apos;t be analyzed until you pick one.</span>
+          <Link to="/settings#ai">Add a config</Link>
+          <span>or</span>
+          <Link to="/settings#mail">choose an existing one</Link>
+        </div>
+      ) : null}
       <header className="mail-hero">
         <div>
           <h1>Mail</h1>
@@ -952,8 +1103,34 @@ export default function MailPage() {
                   ))}
                 </select>
               )}
-              <button type="button" onClick={() => void fetchLatestMail()} disabled={state.loading || state.setupRequired}>
+              <button type="button" onClick={() => void fetchLatestMail()} disabled={state.loading || state.setupRequired || !state.accountsLoaded} title="Fetch the 100 most recent emails">
                 sync
+              </button>
+              <button
+                type="button"
+                onClick={() => void fetchLatestMail({ fetchAll: true })}
+                disabled={state.loading || state.setupRequired || !state.accountsLoaded}
+                title="Fetch the entire mailbox — slow on large inboxes"
+              >
+                fetch all
+              </button>
+              <button
+                type="button"
+                className="mail-row-btn mail-row-btn--apply"
+                onClick={() => void applyAllRecommendations()}
+                disabled={state.loading || state.actionLoading || filteredEmails.filter((e) => ["delete", "archive", "calendar"].includes(recommendationClass(e))).length === 0}
+                title="Run the AI's recommended action on every analyzed email (archive / delete-to-Trash / calendar)"
+              >
+                ✓ apply all
+              </button>
+              <button
+                type="button"
+                className="mail-row-btn mail-row-btn--apply"
+                onClick={() => void applyAllCalendarSuggestions()}
+                disabled={state.loading || state.actionLoading || filteredEmails.flatMap((e) => e.suggested_actions || []).filter((a) => a.type === "add_to_calendar").length === 0}
+                title="Create calendar events for every loaded email that has an add_to_calendar suggestion"
+              >
+                + all calendar
               </button>
               {DEV_MODE && (
                 <>
@@ -1062,7 +1239,7 @@ export default function MailPage() {
             </div>
           )}
 
-          {state.loading && filteredEmails.length === 0 ? (
+          {(state.loading || !state.accountsLoaded || !state.mailChecked) && filteredEmails.length === 0 ? (
             <ul className="mail-list" aria-busy="true">
               {Array.from({ length: 5 }, (_, i) => (
                 <li key={`skel-${i}`} className="mail-list-item mail-skeleton" aria-hidden="true">
@@ -1148,6 +1325,25 @@ export default function MailPage() {
                       ))}
                     </div>
                     <div className="mail-item-actions" onClick={(e) => e.stopPropagation()}>
+                      {hasAnalysis(email) ? (
+                        <button
+                          type="button"
+                          className="mail-row-btn mail-row-btn--apply"
+                          onClick={() => void applyRecommendation(email)}
+                          disabled={state.actionLoading}
+                          title={
+                            recommendationClass(email) === "delete"
+                              ? "Move to Trash (recommended)"
+                              : recommendationClass(email) === "archive"
+                                ? `Move to ${email.recommended_folder || "Archive"} (recommended)`
+                                : recommendationClass(email) === "calendar"
+                                  ? "Create calendar event from this email (recommended)"
+                                  : "Open this email (recommended)"
+                          }
+                        >
+                          ✓ apply
+                        </button>
+                      ) : null}
                       {email.recommended_folder && email.recommended_folder.toLowerCase() !== state.activeFolder.toLowerCase() ? (
                         <button
                           type="button"

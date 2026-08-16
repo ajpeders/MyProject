@@ -9,3 +9,8 @@ test-results/
 
 # Claude
 .claude/
+
+# Secrets / local env (homelab deploy)
+.env
+.env.homelab
+.env.*.local
