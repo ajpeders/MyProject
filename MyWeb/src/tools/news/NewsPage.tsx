@@ -20,9 +20,14 @@ export default function NewsPage() {
   const [sources, setSources] = useState<NewsSource[]>([]);
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [curatedArticles, setCuratedArticles] = useState<CuratedArticle[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+
+  // Which view the loaded articles belong to. `loading` is derived from it, so
+  // switching tabs shows the spinner without a setState-in-effect round trip.
+  const viewKey = forYou ? "for-you" : `topic:${topic}`;
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const loading = loadedKey !== viewKey;
 
   const loadCurated = useCallback(async () => {
     setError("");
@@ -31,8 +36,6 @@ export default function NewsPage() {
       setCuratedArticles(data.articles);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load curated feed");
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -47,19 +50,21 @@ export default function NewsPage() {
       setArticles(artData.articles);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load news");
-    } finally {
-      setLoading(false);
     }
   }, [topic]);
 
   useEffect(() => {
-    setLoading(true);
-    if (forYou) {
-      void loadCurated();
-    } else {
-      void loadData();
-    }
-  }, [forYou, loadCurated, loadData]);
+    let cancelled = false;
+    const key = viewKey;
+    const load = forYou ? loadCurated : loadData;
+    // Settle even on failure — the error banner replaces the spinner.
+    void load().finally(() => {
+      if (!cancelled) setLoadedKey(key);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewKey, forYou, loadCurated, loadData]);
 
   const sourceOptions = useMemo(() => {
     const activeForTopic = sources
@@ -68,19 +73,18 @@ export default function NewsPage() {
     return ["All sources", ...Array.from(new Set(activeForTopic))];
   }, [sources, topic]);
 
+  // Derived, not stored: when the topic changes the previously-picked source may
+  // no longer be offered, and falling back during render avoids a reset effect
+  // (and the extra render pass it would cost).
+  const effectiveSource = sourceOptions.includes(source) ? source : "All sources";
+
   const visibleArticles = useMemo(
     () =>
       articles.filter(
-        (a) => source === "All sources" || a.source_label === source,
+        (a) => effectiveSource === "All sources" || a.source_label === effectiveSource,
       ),
-    [articles, source],
+    [articles, effectiveSource],
   );
-
-  useEffect(() => {
-    if (!sourceOptions.includes(source)) {
-      setSource("All sources");
-    }
-  }, [source, sourceOptions]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -154,7 +158,7 @@ export default function NewsPage() {
         {!forYou && (
           <label className="news-filter">
             <span>Source</span>
-            <select value={source} onChange={(event) => setSource(event.target.value)}>
+            <select value={effectiveSource} onChange={(event) => setSource(event.target.value)}>
               {sourceOptions.map((item) => (
                 <option key={item} value={item}>
                   {item}

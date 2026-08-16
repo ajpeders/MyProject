@@ -71,7 +71,9 @@ export default function SettingsPage() {
 
   // News sources (admin)
   const [newsSources, setNewsSources] = useState<NewsSource[]>([]);
-  const [newsSourcesLoading, setNewsSourcesLoading] = useState(true);
+  // Only admins fetch news sources, so non-admins start settled rather than
+  // being flipped out of a "loading" state by the mount effect.
+  const [newsSourcesLoading, setNewsSourcesLoading] = useState(isAdmin);
   const [newsSourcesError, setNewsSourcesError] = useState("");
   const [newsLabel, setNewsLabel] = useState("");
   const [newsTopic, setNewsTopic] = useState<NewsTopic>("Tech");
@@ -106,7 +108,7 @@ export default function SettingsPage() {
         .then((data) => { if (!cancelled) setNewsSources(data.sources); })
         .catch((err) => { if (!cancelled) setNewsSourcesError(err instanceof Error ? err.message : "Failed to load news sources"); })
         .finally(() => { if (!cancelled) setNewsSourcesLoading(false); });
-    } else { setNewsSourcesLoading(false); }
+    }
     return () => { cancelled = true; };
   }, [navigate]);
 
