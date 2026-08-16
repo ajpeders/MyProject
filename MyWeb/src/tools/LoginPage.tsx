@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { demoLogin, getDemoLoginStatus, loginAccount, registerAccount, storeAuthResponse } from "../api/auth";
+import { loginAccount, registerAccount, storeAuthResponse } from "../api/auth";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -11,25 +11,6 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [demoEnabled, setDemoEnabled] = useState(false);
-
-  useEffect(() => {
-    getDemoLoginStatus().then((s) => setDemoEnabled(s.enabled)).catch(() => {});
-  }, []);
-
-  async function handleDemoLogin() {
-    setError("");
-    setLoading(true);
-    try {
-      const result = await demoLogin();
-      storeAuthResponse(result, result.account);
-      window.location.href = "/";
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Demo login failed");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -107,16 +88,6 @@ export default function LoginPage() {
             {loading ? "Connecting..." : mode === "login" ? "Sign In" : "Create Account"}
           </button>
         </form>
-
-        {demoEnabled ? (
-          <div className="auth-demo">
-            <hr />
-            <button type="button" className="auth-demo-btn" onClick={() => void handleDemoLogin()} disabled={loading}>
-              Try demo account
-            </button>
-            <p className="auth-demo-hint">Skip signup — log in as a shared demo user.</p>
-          </div>
-        ) : null}
       </div>
     </div>
   );

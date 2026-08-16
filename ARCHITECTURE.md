@@ -64,6 +64,13 @@ Two MyAgent settings that only bite in a long-lived deployment, both now wired t
 sessions) and `ALLOWED_ORIGINS` (code default `*`, which browsers reject because the app
 sends credentials).
 
+**Exposure.** Published ports bind to `127.0.0.1` unless `BIND_HOST` says otherwise.
+Three facts compose badly: myagent mounts the host docker socket (root-equivalent), it
+serves unauthenticated when `MYDEVTEAM_API_KEY` is empty, and published ports would
+otherwise reach the LAN. That combination is why myagent was removed from the homelab
+deploy on 2026-07-06 (`docker-compose.homelab.yml` header). Loopback is the safe default;
+widen it only after setting the API key.
+
 **Auth asymmetry, by design of the two codebases:** devTeam refuses to start without an
 admin key; MyAgent treats an empty `MYDEVTEAM_API_KEY` as "no auth" and serves anyway
 (`MyAgent/src/core/config.py:15`). Both read the *same* variable, so one key covers both

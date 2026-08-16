@@ -8,8 +8,6 @@ vi.mock("../api/auth", () => ({
   loginAccount: vi.fn(),
   registerAccount: vi.fn(),
   storeAuthResponse: vi.fn(),
-  getDemoLoginStatus: vi.fn(() => Promise.resolve({ enabled: false })),
-  demoLogin: vi.fn(),
 }));
 
 describe("LoginPage", () => {

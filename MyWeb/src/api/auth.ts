@@ -37,16 +37,6 @@ export async function registerAccount(
   });
 }
 
-export interface DemoLoginStatus { enabled: boolean }
-
-export async function getDemoLoginStatus(): Promise<DemoLoginStatus> {
-  return apiFetch<DemoLoginStatus>("/api/account/demo-login");
-}
-
-export async function demoLogin(): Promise<LoginResponse> {
-  return apiFetch<LoginResponse>("/api/account/demo-login", { method: "POST" });
-}
-
 export function isAuthenticated(): boolean {
   return Boolean(localStorage.getItem("myagent.token"));
 }

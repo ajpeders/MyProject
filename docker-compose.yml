@@ -12,7 +12,12 @@ services:
     image: myproject/devteam:dev
     container_name: myproject-devteam
     ports:
-      - "4223:4223"
+      # Loopback by default. This stack mounts the host docker socket into
+      # myagent, and MyAgent serves unauthenticated when MYDEVTEAM_API_KEY is
+      # empty — publishing on all interfaces turns that into a LAN-to-host-root
+      # path, which is why myagent was pulled from the homelab deploy on
+      # 2026-07-06. Override BIND_HOST only for a deployment you have secured.
+      - "${BIND_HOST:-127.0.0.1}:4223:4223"
     environment:
       # The daemon refuses to start without an admin key (fail-closed). Set this
       # in a .env file next to this compose file — see .env.example.
@@ -40,7 +45,7 @@ services:
     image: myproject/myagent:dev
     container_name: myproject-myagent
     ports:
-      - "8000:8000"
+      - "${BIND_HOST:-127.0.0.1}:8000:8000"
     environment:
       # The `ollama` python client reads OLLAMA_HOST natively, so this is enough
       # to point MyAgent at the host's ollama.
@@ -96,7 +101,7 @@ services:
     image: myproject/myweb:dev
     container_name: myproject-myweb
     ports:
-      - "5173:5173"
+      - "${BIND_HOST:-127.0.0.1}:5173:5173"
     depends_on:
       myagent:
         condition: service_healthy
