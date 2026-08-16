@@ -125,6 +125,37 @@ npm run e2e       # playwright test
 
 Both scripts are in `MyWeb/package.json`.
 
+## CI
+
+Each repo carries its own Forgejo Actions workflow at `.forgejo/workflows/ci.yml`,
+running on push to the default branch and on pull requests:
+
+| Repo             | What it runs                                                            |
+| ---------------- | ----------------------------------------------------------------------- |
+| MyProject (root) | MyWeb lint + tests + production build (`tsc -b`, so also the typecheck); `docker compose config`; a guard that fails if `.env` is ever committed |
+| devTeam          | full `pytest -q` (151), plus an assertion that `config/docker.yaml` binds `0.0.0.0`, advertises `localhost`, and has no baked-in admin key |
+| MyAgent          | full `pytest tests/ -q` (316)                                           |
+
+Submodules are intentionally not tested by the root workflow — each sub-repo tests
+itself, so a pointer bump doesn't re-run their suites.
+
+Two caveats, both unverified because they need the Forgejo instance:
+
+- `runs-on: ubuntu-latest` is a guess at the runner label this instance registers.
+  If jobs sit queued forever, that label is wrong — change it in all three files.
+- No workflow has actually been executed. Every command in them was run locally
+  first (including devTeam's suite in a throwaway venv), but that is not the same
+  as a green pipeline.
+
+To reproduce CI locally:
+
+```bash
+cd MyWeb    && npm ci && npm run lint && npm test && npm run build
+cd devTeam  && make test-all
+cd MyAgent  && .venv/bin/python -m pytest tests/ -q
+docker compose config --quiet
+```
+
 ## Add a new subproject
 
 Template for adding a sibling service under `MyProject/`:

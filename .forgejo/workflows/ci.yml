@@ -1,0 +1,62 @@
+# CI for the MyProject root repo: the MyWeb frontend plus compose validation.
+# devTeam/ and MyAgent/ are submodules and run their own workflows in their own
+# repos — this one deliberately does not test them.
+#
+# Runner label: `ubuntu-latest` is what a default Forgejo runner registers.
+# If this instance registers different labels, change `runs-on` to match.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  myweb:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MyWeb
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches MyWeb/Dockerfile (node:22-alpine) so CI exercises the same
+          # toolchain that builds the shipped bundle.
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: MyWeb/package-lock.json
+
+      - run: npm ci
+
+      # Fails on errors only; 3 exhaustive-deps warnings in MailPage are known.
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit and component tests
+        run: npm test
+
+      # `npm run build` is `tsc -b && vite build`, so this is also the typecheck.
+      - name: Production build
+        run: npm run build
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        # Catches malformed YAML, bad interpolation and unknown keys without
+        # needing the submodule build contexts to be present.
+        run: docker compose config --quiet
+
+      - name: Fail if .env is committed
+        # .env holds MYDEVTEAM_API_KEY and JWT_SECRET; only .env.example belongs
+        # in git. Cheap guard against a future gitignore regression.
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error::.env is tracked by git — it must stay ignored (see .env.example)"
+            exit 1
+          fi

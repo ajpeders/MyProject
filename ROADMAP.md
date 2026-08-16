@@ -29,13 +29,24 @@ not have worked; fixed and verified this pass (`docker compose ps` → all three
 Test counts verified this pass: **MyWeb 190**, **MyAgent 316**, **devTeam 151** — all
 passing, no known failures. (Previous docs claimed 186/291/38 with 3 baseline failures.)
 
+Also fixed this pass:
+
+- **devTeam could not be installed from scratch.** `build-backend` pointed at the
+  private `setuptools.backends._legacy:_Backend`, gone in setuptools 84 — so
+  `pip install -e .`, the documented `make test` bootstrap, and any CI runner all
+  failed on a clean machine. Now on `setuptools.build_meta` with explicit package
+  discovery; verified by `rm -rf .venv && make test-all`.
+- **CI added** — `.forgejo/workflows/ci.yml` in all three repos (see `HOWTO.md`).
+  Caveat: never executed, runner label unconfirmed.
+
 ### Known gaps, not addressed this pass
 
 - `MYDEVTEAM_*` env var names are shared by both services — one key grants access to
   both. Renaming is breaking for existing deployments; needs a decision.
 - MyAgent serves unauthenticated when the key is empty (devTeam fails closed). Making
   MyAgent fail closed too is a behavior change for local dev workflows.
-- No CI runs any of these suites; nothing enforces the counts above.
+- CI workflows exist now (see below) but have **never been executed** — the runner
+  label is a guess. Until a job goes green, nothing is actually enforced.
 - MyWeb ships one 476 kB JS chunk (139 kB gzip) — no code splitting.
 
 ## Released — 2026-05-11 (v0.1)
