@@ -6,9 +6,9 @@ Monorepo of personal-productivity services and the web UI that fronts them. Thre
 
 | Name        | Description                                                            | Status               | Port  |
 | ----------- | ---------------------------------------------------------------------- | -------------------- | ----- |
-| `devTeam/`  | Agentic dev-team daemon (FastAPI, 5 AI agents via ollama)              | Active (2026-05-03)  | 4223  |
-| `MyAgent/`  | Personal local-LLM agent gateway (FastAPI, structured tool dispatch)   | Active (2026-05-03)  | 8000  |
-| `MyWeb/`    | React 19 + TS ~5.4.0 + Vite 8 tool-suite frontend                      | Active (uncommitted) | 5173  |
+| `devTeam/`  | Agentic dev-team daemon (FastAPI, 5 AI agents via ollama)              | Active (submodule)   | 4223  |
+| `MyAgent/`  | Personal local-LLM agent gateway (FastAPI, structured tool dispatch)   | Active (submodule)   | 8000  |
+| `MyWeb/`    | React 19 + TS 5.9 + Vite 8 tool-suite frontend                         | Active (in-repo)     | 5173  |
 | `MyCli/`    | Empty stub, no tracked files                                           | Stub                 | n/a   |
 
 The Discord music bot was extracted from this monorepo on 2026-05-11 — it now lives as a standalone repo at `../discord-bot/` (Forgejo: `alex/discord-bot`, GitHub: `ajpeders/discord-bot`).
@@ -16,6 +16,20 @@ The Discord music bot was extracted from this monorepo on 2026-05-11 — it now 
 Sources: `start-servers.sh`, `devTeam/config/local-test.yaml`, `MyWeb/package.json`.
 
 ## Quick start
+
+Containers (closest to a production deploy):
+
+```bash
+git clone --recurse-submodules git@git.thelunadog.com:alex/MyProject.git
+cd MyProject
+cp .env.example .env    # then set MYDEVTEAM_API_KEY — required, see HOWTO.md
+docker compose up --build
+```
+
+All three services expose health endpoints (`:4223/healthz`, `:8000/health`,
+`:5173/healthz`); `docker compose ps` shows `(healthy)` once they pass.
+
+Native dev:
 
 ```bash
 ./start-servers.sh

@@ -48,14 +48,30 @@ Overridable env vars (from the script):
 ## Start everything with Docker
 
 ```bash
+cp .env.example .env
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"   # paste into MYDEVTEAM_API_KEY
 docker compose up --build
 ```
 
+**`.env` with `MYDEVTEAM_API_KEY` is required.** The devTeam daemon fails closed and
+exits at startup with `no admin API key configured` if it is empty, because its admin
+endpoints would otherwise be unprotected. `.env` is gitignored; only `.env.example` is
+tracked. Verified 2026-08-16: with an empty key the container logs the refusal and exits.
+
+MyAgent reads the *same* variable but behaves differently — an empty key means **no auth
+at all**, and it starts anyway (`src/core/config.py:15`). So a missing key does not just
+break devTeam, it silently publishes MyAgent's API on `:8000`. Always set it.
+
 `docker-compose.yml` at the repo root builds and runs all three services:
 
-1. `devteam` — built from `devTeam/Dockerfile`, published on `localhost:4223`.
+1. `devteam` — built from `devTeam/Dockerfile`, published on `localhost:4223`. Runs `config/docker.yaml` (**not** `local-test.yaml`): it binds `0.0.0.0` so the published port is reachable, points the agents' LLM endpoint at `host.docker.internal`, and ships no baked-in admin key. State (task DB, agent logs, workspaces) persists in the `devteam-data` volume at `/data`.
 2. `myagent` — built from `MyAgent/Dockerfile`, published on `localhost:8000`. Mounts `/var/run/docker.sock` so MyAgent can spawn its alpine sandbox container — this grants the container root-equivalent access on the host and is required by design.
 3. `myweb` — built from `MyWeb/Dockerfile` (multi-stage Vite build → nginx), published on `localhost:5173`.
+
+All three declare healthchecks (`devteam` → `GET /healthz`, `myagent` → `GET /health`,
+`myweb` → `GET /healthz` served by nginx). `myweb` waits for both backends to report
+healthy before it starts. Check status with `docker compose ps` — the STATUS column
+shows `(healthy)` once probes pass.
 
 Prerequisites:
 
@@ -64,8 +80,9 @@ Prerequisites:
 
 Caveats:
 
-- `MyAgent`'s `sessions.db` and `src/data.db` live inside the container and reset on rebuild. Persisting them needs a configurable DB path in MyAgent first; once that exists, mount a named volume at that path.
-- `MyWeb` is served as static files by nginx — any `VITE_*` values are baked in at build time. If the frontend reads runtime API URLs from env, add a build arg to `MyWeb/Dockerfile` and a `build.args` block in compose.
+- `MyAgent` state persists in the `myagent-data` volume via `MYDEVTEAM_DATA_DIR=/data`. All of it (users, sessions, encrypted IMAP creds, cached mail) is the single `data.db`; there is no separate `sessions.db` any more.
+- `MyWeb` is served as static files by nginx — all `VITE_*` values are baked in at **build** time from `.env` via compose `build.args`. Changing an API URL or key requires `docker compose build myweb`, not just a restart. Anything in `VITE_API_KEY` / `VITE_DEVTEAM_API_KEY` is readable in the shipped JavaScript: leave them empty unless the deployment is fully private, and let users supply their key at runtime (the login page stores it in localStorage).
+- `devTeam` does **not** read `OLLAMA_HOST` — its LLM endpoint comes from `config/docker.yaml`, which is passed to litellm. Only MyAgent honors `OLLAMA_HOST` (the `ollama` python client reads it natively).
 - `devTeam/` and `MyAgent/` are git submodules. The root `MyProject` repo pins a specific commit of each; changes to their `Dockerfile` are committed in the sub-repo first, then the pinned SHA is bumped at the root.
 
 Stop with `Ctrl+C`, or `docker compose down` from another terminal.
@@ -79,7 +96,15 @@ cd devTeam
 make test
 ```
 
-`devTeam/Makefile` declares `test: test-api test-agents`, running `pytest daemon/api/test_server.py -q` and the agents test suite via `$(VENV_DIR)/bin/python -m pytest`. `test-api` depends on the `venv` target (`devTeam/Makefile:20`), so `make test` will bootstrap `.venv` automatically on a fresh checkout. Current API test count: 46.
+`devTeam/Makefile` declares `test: test-api test-agents`, running `pytest daemon/api/test_server.py -q` and the agents test suite via `$(VENV_DIR)/bin/python -m pytest`. `test-api` depends on the `venv` target (`devTeam/Makefile:20`), so `make test` will bootstrap `.venv` automatically on a fresh checkout.
+
+To run everything (tests are colocated next to sources, not only under `tests/`):
+
+```bash
+.venv/bin/python -m pytest -q
+```
+
+Counts verified 2026-08-16: **151 passing** overall, of which `daemon/api/test_server.py` is 60.
 
 ### MyAgent
 

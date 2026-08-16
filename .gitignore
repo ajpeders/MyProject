@@ -4,6 +4,11 @@
 .codex/
 test-results/
 
+# Secrets — compose reads .env automatically; only the example is tracked.
+.env
+.env.local
+.env.*.local
+
 # OS
 .DS_Store
 
