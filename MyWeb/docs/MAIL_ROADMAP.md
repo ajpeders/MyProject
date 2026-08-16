@@ -77,7 +77,12 @@ Backend (FastAPI)
 - [ ] Prompt improvements — refine recommendation/intent system prompts for better triage accuracy (fewer false deletes, better calendar detection, etc.)
 - [ ] Incremental sync — currently re-fetches top N emails every time; should use UIDVALIDITY + last-seen UID for delta sync
 - [ ] Background sync — periodic IMAP poll instead of on-demand only
-- [ ] Rate limiting on LLM analysis — prevent accidental rapid re-analysis calls
+- [x] Rate limiting on LLM analysis — per-user 10s cooldown on explicit
+      re-analysis (`MyAgent/src/services/mail/rate_limit.py`). Returns 429 with a
+      `Retry-After` header; the mail page already surfaces the server message
+      ("Try again in 8s."). `fetch(analyze=True)` is intentionally not limited —
+      it only analyzes emails that have no analysis yet. In-process only: with
+      multiple uvicorn workers each keeps its own window.
 - [ ] Email threading — group replies by message-id/in-reply-to headers
 
 ### P3 — Future
