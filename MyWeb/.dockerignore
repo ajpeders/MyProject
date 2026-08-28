@@ -1,0 +1,11 @@
+.git
+node_modules
+dist
+.vite
+coverage
+test-results
+playwright-report
+.playwright-mcp
+*.log
+.env
+.env.*

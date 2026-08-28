@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Local/editor settings
+.DS_Store
+.claude/settings.local.json
+.codex/
+test-results/

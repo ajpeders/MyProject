@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "MyAgent",
+    "slug": "myagent-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "myagent",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0b0b0c"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "dev.myagent.mobile"
+    },
+    "android": {
+      "package": "dev.myagent.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#0b0b0c"
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "apiBaseUrl": "https://myproject.example.com"
+    }
+  }
+}

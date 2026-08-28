@@ -1,0 +1,74 @@
+# CI for the MyProject root repo: the MyWeb frontend plus repo-level guards.
+# devTeam/ and MyAgent/ are submodules and run their own workflows in their own
+# repos — this one deliberately does not test them.
+#
+# The `check` job is kept exactly as it was: homelab CD gates on it, so renaming
+# it or folding it into another job could stop deploys. New checks are added as
+# separate jobs instead.
+#
+# Runner label: `ubuntu-latest` is what a default Forgejo runner registers.
+# If this instance registers different labels, change `runs-on` to match.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build MyWeb
+        working-directory: MyWeb
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+  myweb-quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: MyWeb
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Matches MyWeb/Dockerfile (node:22-alpine) so CI exercises the same
+          # toolchain that builds the shipped bundle.
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: MyWeb/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+
+      # Fails on errors only; exhaustive-deps warnings in MailPage are known.
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit and component tests
+        run: npm test
+
+  repo-guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        # Catches malformed YAML, bad interpolation and unknown keys without
+        # needing the submodule build contexts to be present.
+        run: docker compose config --quiet
+
+      - name: Fail if a real .env is committed
+        # .env / .env.homelab hold MYDEVTEAM_API_KEY and JWT_SECRET; only the
+        # .example variants belong in git. Guards against a gitignore regression.
+        run: |
+          for f in .env .env.homelab; do
+            if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+              echo "::error::$f is tracked by git — it must stay ignored"
+              exit 1
+            fi
+          done

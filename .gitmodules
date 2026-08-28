@@ -1,0 +1,6 @@
+[submodule "devTeam"]
+	path = devTeam
+	url = git@github.com:ajpeders/devTeam.git
+[submodule "MyAgent"]
+	path = MyAgent
+	url = git@github.com:ajpeders/MyAgent.git

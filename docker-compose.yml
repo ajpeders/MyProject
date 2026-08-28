@@ -1,0 +1,136 @@
+# Dev/prod stack for the MyProject monorepo.
+# Brings up devTeam (4223), MyAgent (8000), and MyWeb (5173).
+#
+# Assumes ollama is reachable at host's :11434 — the host-gateway alias makes
+# `host.docker.internal` resolve to the host on Linux/Mac/Windows. If you want a
+# containerized ollama instead, see the commented service at the bottom.
+
+services:
+  devteam:
+    build:
+      context: ./devTeam
+    image: myproject/devteam:dev
+    container_name: myproject-devteam
+    ports:
+      # Loopback by default. This stack mounts the host docker socket into
+      # myagent, and MyAgent serves unauthenticated when MYDEVTEAM_API_KEY is
+      # empty — publishing on all interfaces turns that into a LAN-to-host-root
+      # path, which is why myagent was pulled from the homelab deploy on
+      # 2026-07-06. Override BIND_HOST only for a deployment you have secured.
+      - "${BIND_HOST:-127.0.0.1}:4223:4223"
+    environment:
+      # The daemon refuses to start without an admin key (fail-closed). Set this
+      # in a .env file next to this compose file — see .env.example.
+      # NOTE: devTeam does NOT read OLLAMA_HOST; its LLM endpoint comes from
+      # devTeam/config/docker.yaml, which the image's CMD selects.
+      MYDEVTEAM_API_KEY: ${MYDEVTEAM_API_KEY:-}
+      MYDEVTEAM_ADMIN_EMAILS: ${MYDEVTEAM_ADMIN_EMAILS:-}
+      MYDEVTEAM_ALLOWED_ORIGINS: ${MYDEVTEAM_ALLOWED_ORIGINS:-}
+    volumes:
+      # Task DB, agent logs and git workspaces — without this they vanish on rebuild.
+      - devteam-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4223/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  myagent:
+    build:
+      context: ./MyAgent
+    image: myproject/myagent:dev
+    container_name: myproject-myagent
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:8000:8000"
+    environment:
+      # The `ollama` python client reads OLLAMA_HOST natively, so this is enough
+      # to point MyAgent at the host's ollama.
+      OLLAMA_HOST: http://host.docker.internal:11434
+      HOST: 0.0.0.0
+      PORT: "8000"
+      # SECURITY: unlike devTeam (which fails closed), MyAgent treats an empty
+      # key as "no auth required" — src/core/config.py:15. Leaving this unset
+      # publishes an unauthenticated API on :8000. Both services read the same
+      # variable name, so one key covers both.
+      MYDEVTEAM_API_KEY: ${MYDEVTEAM_API_KEY:-}
+      # All MyAgent state (users, sessions, encrypted mail cache) is one SQLite
+      # file under this dir — src/core/db.py:18.
+      MYDEVTEAM_DATA_DIR: /data
+      # Defaults to "*" in code, which browsers reject alongside
+      # allow_credentials=True. Pin it to the real frontend origin.
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:5173}
+      # Without this, MyAgent generates a random secret per process
+      # (src/core/config.py:18) — every restart silently logs every user out.
+      JWT_SECRET: ${JWT_SECRET:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # MyAgent spawns its alpine sandbox via the host docker daemon.
+      # SECURITY: this grants root-equivalent access on the host. Required by design.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Persists data.db across rebuilds. Without this, every `docker compose
+      # build` silently destroys all users, sessions and cached mail.
+      - myagent-data:/data
+    healthcheck:
+      # python instead of curl — the slim image has no curl.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+  myweb:
+    build:
+      context: ./MyWeb
+      # SPA bundle is built with these baked in. The browser runs on the host,
+      # so it reaches the other services via their published host ports.
+      # Override per-deployment (e.g., behind Traefik with real hostnames).
+      args:
+        VITE_API_BASE_URL: "${VITE_API_BASE_URL:-http://localhost:8000}"
+        VITE_DEVTEAM_API_URL: "${VITE_DEVTEAM_API_URL:-http://localhost:4223}"
+        # Baked into the JS bundle and therefore readable by anyone who loads the
+        # page — leave empty and let users enter their key at runtime (stored in
+        # localStorage by the login page) unless the deployment is fully private.
+        VITE_API_KEY: "${VITE_API_KEY:-}"
+        VITE_DEVTEAM_API_KEY: "${VITE_DEVTEAM_API_KEY:-}"
+    image: myproject/myweb:dev
+    container_name: myproject-myweb
+    ports:
+      - "${BIND_HOST:-127.0.0.1}:5173:5173"
+    depends_on:
+      myagent:
+        condition: service_healthy
+      devteam:
+        condition: service_healthy
+    healthcheck:
+      # 127.0.0.1, not localhost: busybox wget tries ::1 first and nginx.conf
+      # binds IPv4 only, so `localhost` fails with connection refused from
+      # inside the container even while the host can reach the published port.
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:5173/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Uncomment to run ollama inside compose instead of using the host install.
+  # Models are not shared with a host ollama — they're pulled into the named volume.
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: myproject-ollama
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama-data:/root/.ollama
+  #   restart: unless-stopped
+
+volumes:
+  devteam-data:
+  myagent-data:
+  # When you uncomment the ollama service above, also uncomment:
+  # ollama-data:
