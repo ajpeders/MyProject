@@ -1,6 +1,6 @@
 # Architecture
 
-Top-level view of the MyProject monorepo. For per-service internals, read the `ARCHITECTURE.md` inside each active subproject (`devTeam/`, `MyAgent/`, `MyWeb/`).
+Top-level view of the MyProject monorepo. For per-service internals, read the `ARCHITECTURE.md` inside each active subproject (`devTeam/`, `MyAgent/`, `MyWeb/`). `MyMobile/` (Expo phone app) is a second client on the same MyAgent `/api/*` surface — it adds no backend of its own.
 
 ## Data flow
 
@@ -113,6 +113,7 @@ MyProject/                       # this repo
 ├── devTeam/    (submodule)      # FastAPI agentic dev-team daemon
 ├── MyAgent/    (submodule)      # FastAPI personal LLM agent
 ├── MyWeb/                       # React 19 + TS 5.9 + Vite 8 SPA
+├── MyMobile/                    # Expo SDK 54 + React Native 0.81 phone app
 ├── MyCli/                       # empty stub
 ├── docker-compose.yml           # builds + runs all three services
 ├── .env.example                 # compose config; copy to .env (gitignored)
@@ -130,6 +131,7 @@ The Discord bot (formerly `musicBot/` inside this monorepo) was extracted on 202
 - **devTeam** — FastAPI HTTP daemon with SQLAlchemy + SQLite (WAL), `AgentManager`, optional NATS sync. Agents: Orchestrator, Dev, PRManager (review), QA, Deploy. LLM calls via `litellm` against ollama or cloud providers. Ships with a Dockerfile for containerized runs. Auth surface includes per-user API key management (`/api/key/*` endpoints, sha256-hashed) and a fail-closed admin gate. See `devTeam/ARCHITECTURE.md`.
 - **MyAgent** — FastAPI gateway exposing structured tool dispatch over a local LLM (default `qwen3:8b` via ollama). Persists sessions in `MyAgent/sessions.db` and structured data in `src/core/data.db` (path overridable via `MYDEVTEAM_DATA_DIR`). Includes a voice-agent path: `/api/whisper/transcribe`, `/api/whisper/agent`, `/api/whisper/agent/async`, device tokens (`whsk_*`) for iPhone Shortcuts, and ntfy.sh push for async results. See `MyAgent/ARCHITECTURE.md`.
 - **MyWeb** — Browser-only SPA shell exposing mail, news, search, chat, memory, calendar, admin, settings, devteam, whisper, and agent pages under one authenticated layout. See `MyWeb/ARCHITECTURE.md`.
+- **MyMobile** — Expo SDK 54 / React Native 0.81 / TS ~5.9 phone app using `expo-router`; JWT + session stored via `expo-secure-store`. Hits the same `/api/account/*` and `/api/mail/*` endpoints as MyWeb; enforces the same "delete = Trash, never expunge" invariant. Includes settings for AI-config and IMAP-account CRUD. See `MyMobile/README.md`.
 - **MyCli** — Empty directory with no tracked files.
 
 ## Voice-input path

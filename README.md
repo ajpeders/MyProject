@@ -1,6 +1,6 @@
 # MyProject
 
-Monorepo of personal-productivity services and the web UI that fronts them. Three active backends (an agentic dev-team daemon, a personal LLM agent, and the React web app) plus an empty CLI stub. Owned by the `forgo` organization; primary repo host is `git.thelunadog.com` (Forgejo).
+Monorepo of personal-productivity services and the clients that front them: an agentic dev-team daemon, a personal LLM agent, a React web app, and an Expo mobile app, plus an empty CLI stub. Owned by the `forgo` organization; primary repo host is `git.thelunadog.com` (Forgejo, `alex/MyProject`).
 
 ## Subprojects
 
@@ -9,6 +9,7 @@ Monorepo of personal-productivity services and the web UI that fronts them. Thre
 | `devTeam/`  | Agentic dev-team daemon (FastAPI, 5 AI agents via ollama)              | Active (submodule)   | 4223  |
 | `MyAgent/`  | Personal LLM agent gateway (FastAPI, tool dispatch + voice/Whisper)    | Active (submodule)   | 8000  |
 | `MyWeb/`    | React 19 + TS 5.9 + Vite 8 tool-suite frontend (mail, news, whisper…)  | Active (in-repo)     | 5173  |
+| `MyMobile/` | Expo SDK 54 + React Native 0.81 phone app (mail triage v1)             | Active               | n/a   |
 | `MyCli/`    | Empty stub, no tracked files                                           | Stub                 | n/a   |
 
 `devTeam` and `MyAgent` are git submodules pinned at specific commits; the parent repo tracks the pointer SHA. `MyWeb` and `MyCli` are tracked directly in the parent repo. MyWeb has active uncommitted WIP — see `MyWeb/ROADMAP.md` for current threads.
@@ -45,6 +46,10 @@ Prerequisites (per `start-servers.sh` and subproject docs):
 - `MyAgent/.venv` and `MyAgent/start.sh` configured
 - `npm` and `MyWeb/node_modules` installed (`cd MyWeb && npm install`)
 - Local `ollama` reachable at `http://localhost:11434` (used by devTeam agents per `devTeam/config/local-test.yaml`)
+
+## CI / deployment
+
+`.forgejo/workflows/ci.yml` (added 2026-08-16) builds MyWeb on every push to `main` — this is the CI gate the homelab CD agent (`bin/deploy`, conf `bin/deploy.d/myproject.conf`) requires green before deploying. Homelab deployment uses `docker-compose.homelab.yml`; as of 2026-09 only `myproject-web` runs there — `myagent` and devTeam are paused (taken dormant 2026-07).
 
 ## Documentation
 
