@@ -1,5 +1,33 @@
 # Roadmap
 
+## Agent-sized TODO queue — 2026-09-18
+
+These cards break selected existing priorities and observed gaps into small tasks.
+They are the execution queue; the broader roadmap below remains product context.
+Pick one card per change. Paths and commands are relative to this project root;
+`(new)` marks a file to create. Read applicable `AGENTS.md` first. Check whether the
+work has already landed before editing. If so, cite the implementation and checks
+instead of rebuilding it. Install dependencies using this project's documented setup.
+
+`ready` means no product decision is needed, not that every tool is installed.
+Honor explicit dependencies and blocked/parked labels. Do not expand a card into an
+architecture rewrite. If a contract or prerequisite is missing, record the blocker.
+Mark a card complete only with its acceptance evidence; report changed files, checks
+run, and remaining limitations. These TODOs do not authorize deployment, publishing,
+live messages, or changes to production data.
+
+- [ ] **MWEB-01 — Reconcile forward priorities with current routes and fixed mail bugs** (ready)
+  - **Why:** Forward Priorities lists bugs as still present that the release section calls fixed; current App.tsx routes only the reduced tool surface.
+  - **Start here:** ROADMAP.md, docs/MAIL_BUGS.md, docs/MAIL_ROADMAP.md, src/App.tsx, src/tools/registry.ts.
+  - **Do:** Audit the specifically cited bug IDs against their test/code evidence. Remove contradictory still-present claims, distinguish unrouted historical pages from current UI, and keep the actual remaining mail items linked to their detailed backlog.
+  - **Done when:** Current priorities do not reassign fixed work or imply an unrouted page is active. Preserve dated history; no routes are re-enabled in this task.
+
+- [ ] **MWEB-02 — Load the Mail page on demand** (ready)
+  - **Why:** The parent roadmap identifies a single large initial JS chunk; App.tsx eagerly imports MailPage.
+  - **Start here:** src/App.tsx, src/tools/mail/MailPage.tsx, src/components/Layout.test.tsx, package.json.
+  - **Do:** Convert only MailPage to React.lazy with a visible Suspense fallback in the authenticated route. Preserve the auth guard and existing navigation. Do not migrate routing libraries or change other pages.
+  - **Done when:** Run npm test -- --run and npm run build. Inspect build output to confirm a separate Mail chunk; manually check logged-in direct /mail navigation and logged-out redirect. No size improvement is claimed without measured output.
+
 ## Post-v0.1 (2026-05-11 → 2026-05-18)
 
 - **TS toolchain bump** (commit `c0f5df1`, 2026-05-16): `typescript` from `~5.4.0` → `^5.9.0`. The old `tsc` was silently skipping type errors that newer `tsconfig.app.json` semantics actually catch — fixing this surfaced and resolved a batch of latent type errors. Removed unused `accountNames` useMemo and `clearView` function in `src/tools/mail/MailPage.tsx` along the way. Vitest 190/190 passing.

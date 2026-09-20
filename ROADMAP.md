@@ -2,6 +2,35 @@
 
 Top-level status and backlog. Detailed roadmaps live inside each active subproject; this file holds cross-cutting and monorepo-level work.
 
+## Agent-sized TODO queue — 2026-09-18
+
+These cards break selected existing priorities and observed gaps into small tasks.
+They are the execution queue; the broader roadmap below remains product context.
+Pick one card per change. Paths and commands are relative to this project root;
+`(new)` marks a file to create. Read applicable `AGENTS.md` first. Check whether the
+work has already landed before editing. If so, cite the implementation and checks
+instead of rebuilding it. Install dependencies using this project's documented setup.
+
+`ready` means no product decision is needed, not that every tool is installed.
+Honor explicit dependencies and blocked/parked labels. Do not expand a card into an
+architecture rewrite. If a contract or prerequisite is missing, record the blocker.
+Mark a card complete only with its acceptance evidence; report changed files, checks
+run, and remaining limitations. These TODOs do not authorize deployment, publishing,
+live messages, or changes to production data.
+
+- [ ] **MP-01 — Reconcile the subproject status table** (ready)
+  - **Why:** The root describes MyMobile as SDK 53 without IMAP/AI settings; its package and README now describe SDK 54 and both settings surfaces.
+  - **Start here:** ROADMAP.md, README.md, MyMobile/package.json, MyMobile/README.md, MyWeb/src/App.tsx.
+  - **Do:** Update only the current-status prose and links using the checked-in manifests and routes. Preserve dated release history. Add the MyMobile roadmap link; keep MyCli explicitly a stub.
+  - **Done when:** Every active subproject links to its own roadmap; current mobile capabilities and versions match files; historical release notes remain intact.
+
+- [ ] **MP-02 — Document service-specific local health checks** (ready)
+  - **Why:** The stack now has health checks, but old readiness notes mix local evidence with unverified CI/deployment status.
+  - **Start here:** docker-compose.yml, HOWTO.md, devTeam/config/docker.yaml, MyAgent/README.md.
+  - **Do:** Add a short troubleshooting table with each service, configured health path, container port, and a local read-only check. Explain bind versus advertised address using the actual config. Do not boot or deploy the production stack.
+  - **Done when:** Check each path and port against Compose and route definitions; commands use placeholders and distinguish container checks from host checks. No credentials appear in examples.
+
+
 **Points** rate difficulty for agent dispatch (1/2/3/5/8): 1–2 = mechanical, safe for an unattended agent; 3 = needs codebase context; 5–8 = design judgment or cross-service work, human review expected.
 
 ## Status (2026-09-19)
