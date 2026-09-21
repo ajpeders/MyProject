@@ -57,10 +57,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install the compose CLI
+        # CI jobs run in a plain node:20 container with no docker CLI and no
+        # socket — the sandbox is built that way on purpose. `compose config`
+        # is pure client-side parsing, so the standalone binary does the job
+        # with no daemon behind it.
+        run: |
+          curl -fsSL -o /usr/local/bin/docker-compose \
+            https://github.com/docker/compose/releases/download/v2.39.1/docker-compose-linux-x86_64
+          chmod +x /usr/local/bin/docker-compose
+
       - name: Validate docker-compose.yml
         # Catches malformed YAML, bad interpolation and unknown keys without
         # needing the submodule build contexts to be present.
-        run: docker compose config --quiet
+        run: docker-compose config --quiet
 
       - name: Fail if a real .env is committed
         # .env / .env.homelab hold MYDEVTEAM_API_KEY and JWT_SECRET; only the
